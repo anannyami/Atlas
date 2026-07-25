@@ -2,6 +2,9 @@ import { USE_MOCK, delay, request } from "./http";
 import { enrichedRepositories, repositoryDetail } from "./mock-data";
 import type { Page, RepositoryDetail, RepositoryListParams, RepositorySummary } from "./types";
 
+import type {
+  AnalysisResponse,AnalyzeRepositoryRequest,
+} from "./types";
 function applyFilters(all: RepositorySummary[], params: RepositoryListParams): RepositorySummary[] {
   let out = all;
   if (params.query) {

@@ -208,18 +208,41 @@ export type Activity = {
 };
 
 export const recentActivity: Activity[] = [
-  { id: "a1", kind: "opened",    title: "Opened react",                 context: "facebook/react",  time: "2h ago" },
-  { id: "a2", kind: "generated", title: "Generated documentation",       context: "packages/react-reconciler", time: "2h ago" },
-  { id: "a3", kind: "viewed",    title: "Viewed architecture map",       context: "vercel/next.js",  time: "Yesterday" },
-  { id: "a4", kind: "searched",  title: "Searched for “authentication”", context: "nodejs/node",     time: "2 days ago" },
-  { id: "a5", kind: "pinned",    title: "Pinned /src/api",               context: "expressjs/express", time: "3 days ago" },
+  { id: "a1", kind: "opened", title: "Opened react", context: "facebook/react", time: "2h ago" },
+  {
+    id: "a2",
+    kind: "generated",
+    title: "Generated documentation",
+    context: "packages/react-reconciler",
+    time: "2h ago",
+  },
+  {
+    id: "a3",
+    kind: "viewed",
+    title: "Viewed architecture map",
+    context: "vercel/next.js",
+    time: "Yesterday",
+  },
+  {
+    id: "a4",
+    kind: "searched",
+    title: "Searched for “authentication”",
+    context: "nodejs/node",
+    time: "2 days ago",
+  },
+  {
+    id: "a5",
+    kind: "pinned",
+    title: "Pinned /src/api",
+    context: "expressjs/express",
+    time: "3 days ago",
+  },
 ];
 
 export type AnalyzedRepo = { id: string; url: string; name: string; when: string };
 
 export const recentlyAnalyzed: AnalyzedRepo[] = [
-  { id: "r1", url: "github.com/tanstack/router",     name: "tanstack/router",     when: "Today" },
-  { id: "r2", url: "github.com/shadcn-ui/ui",        name: "shadcn-ui/ui",        when: "Yesterday" },
-  { id: "r3", url: "github.com/vitejs/vite",         name: "vitejs/vite",         when: "3 days ago" },
+  { id: "r1", url: "github.com/tanstack/router", name: "tanstack/router", when: "Today" },
+  { id: "r2", url: "github.com/shadcn-ui/ui", name: "shadcn-ui/ui", when: "Yesterday" },
+  { id: "r3", url: "github.com/vitejs/vite", name: "vitejs/vite", when: "3 days ago" },
 ];
-

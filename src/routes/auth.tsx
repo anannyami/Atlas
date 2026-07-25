@@ -54,14 +54,46 @@ type ErrorKind = "network" | "unauthorized" | "expired" | "generic";
 // Capabilities & permissions (editorial content)
 // ---------------------------------------------------------------------------
 const capabilities = [
-  { icon: Layers, title: "Architecture visualization", body: "See how folders, packages, and services connect." },
-  { icon: Boxes, title: "Dependency analysis", body: "Trace every dependency, direct and transitive." },
-  { icon: FileText, title: "Documentation explorer", body: "Browse READMEs and docs with search and syntax highlighting." },
-  { icon: Code2, title: "Technology detection", body: "Every framework and tool, categorized and explained." },
-  { icon: Gauge, title: "Repository health", body: "Maturity, docs, and maintainability scores at a glance." },
-  { icon: Sparkles, title: "Complexity analysis", body: "Hot spots and refactoring opportunities per file." },
-  { icon: Shield, title: "Security insights", body: "Known advisories and configuration risks surfaced." },
-  { icon: UserRoundCog, title: "AI repository explanations", body: "Ask why a piece of code exists — in plain English." },
+  {
+    icon: Layers,
+    title: "Architecture visualization",
+    body: "See how folders, packages, and services connect.",
+  },
+  {
+    icon: Boxes,
+    title: "Dependency analysis",
+    body: "Trace every dependency, direct and transitive.",
+  },
+  {
+    icon: FileText,
+    title: "Documentation explorer",
+    body: "Browse READMEs and docs with search and syntax highlighting.",
+  },
+  {
+    icon: Code2,
+    title: "Technology detection",
+    body: "Every framework and tool, categorized and explained.",
+  },
+  {
+    icon: Gauge,
+    title: "Repository health",
+    body: "Maturity, docs, and maintainability scores at a glance.",
+  },
+  {
+    icon: Sparkles,
+    title: "Complexity analysis",
+    body: "Hot spots and refactoring opportunities per file.",
+  },
+  {
+    icon: Shield,
+    title: "Security insights",
+    body: "Known advisories and configuration risks surfaced.",
+  },
+  {
+    icon: UserRoundCog,
+    title: "AI repository explanations",
+    body: "Ask why a piece of code exists — in plain English.",
+  },
 ];
 
 const permissions = [
@@ -167,7 +199,10 @@ function AuthPage() {
 
       <div className="relative mx-auto max-w-[1240px] px-6 lg:px-10 pt-6 pb-16">
         <div className="flex items-center justify-between">
-          <Link to="/" className="text-[13px] text-mulberry/70 hover:text-oxblood transition inline-flex items-center gap-1.5">
+          <Link
+            to="/"
+            className="text-[13px] text-mulberry/70 hover:text-oxblood transition inline-flex items-center gap-1.5"
+          >
             <span className="translate-y-[-1px]">←</span> Back to Atlas
           </Link>
           <div className="hidden sm:flex items-center gap-1.5 text-[11.5px] font-mono uppercase tracking-[0.16em] text-mulberry/55">
@@ -181,7 +216,12 @@ function AuthPage() {
           <div className="lg:sticky lg:top-8">
             <AnimatePresence mode="wait">
               {hydrated && user && status !== "loading" && status !== "success" && !error ? (
-                <ProfilePanel key="profile" profile={user} onDisconnect={disconnect} onSwitch={() => handleSignIn()} />
+                <ProfilePanel
+                  key="profile"
+                  profile={user}
+                  onDisconnect={disconnect}
+                  onSwitch={() => handleSignIn()}
+                />
               ) : (
                 <motion.div
                   key="auth-card"
@@ -297,7 +337,9 @@ function AuthCard({
   return (
     <div
       className="acrylic-strong rounded-3xl p-7 relative overflow-hidden"
-      style={{ boxShadow: "0 30px 60px -30px rgba(92,30,42,0.35), inset 0 1px 0 rgba(255,246,224,0.5)" }}
+      style={{
+        boxShadow: "0 30px 60px -30px rgba(92,30,42,0.35), inset 0 1px 0 rgba(255,246,224,0.5)",
+      }}
     >
       <CardHeader />
 
@@ -337,7 +379,9 @@ function CardHeader() {
         <div className="font-serif text-[22px] text-oxblood leading-none tracking-tight">
           Connect GitHub
         </div>
-        <div className="text-[12px] text-mulberry/70 mt-1.5">Read-only · OAuth 2.0 · Revoke anytime</div>
+        <div className="text-[12px] text-mulberry/70 mt-1.5">
+          Read-only · OAuth 2.0 · Revoke anytime
+        </div>
       </div>
     </div>
   );
@@ -394,7 +438,9 @@ function IdleBlock({
         whileTap={{ scale: 0.985 }}
         onClick={onSignIn}
         className="mt-6 w-full inline-flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl bg-oxblood text-parchment text-[14px] font-medium hover:bg-burgundy transition"
-        style={{ boxShadow: "inset 0 1px 0 rgba(240,230,177,0.2), 0 14px 34px -14px rgba(92,30,42,0.6)" }}
+        style={{
+          boxShadow: "inset 0 1px 0 rgba(240,230,177,0.2), 0 14px 34px -14px rgba(92,30,42,0.6)",
+        }}
       >
         <GitHubMark size={16} /> Sign in with GitHub
       </motion.button>
@@ -417,7 +463,11 @@ function IdleBlock({
                 }`}
               >
                 {simulate === s ? "✓ " : ""}
-                {s === "network" ? "Network error" : s === "unauthorized" ? "Unauthorized" : "Session expired"}
+                {s === "network"
+                  ? "Network error"
+                  : s === "unauthorized"
+                    ? "Unauthorized"
+                    : "Session expired"}
               </button>
             ))}
           </div>
@@ -427,13 +477,7 @@ function IdleBlock({
   );
 }
 
-function LoadingBlock({
-  progress,
-  onCancel,
-}: {
-  progress: AuthProgress;
-  onCancel: () => void;
-}) {
+function LoadingBlock({ progress, onCancel }: { progress: AuthProgress; onCancel: () => void }) {
   const pct = Math.max(0.03, progress.progress);
   return (
     <motion.div
@@ -479,7 +523,11 @@ function LoadingBlock({
                       : "bg-oxblood/[0.08] text-mulberry/50"
                 }`}
               >
-                {state === "done" ? <Check size={10} /> : state === "active" ? <Loader2 size={9} className="animate-spin" /> : null}
+                {state === "done" ? (
+                  <Check size={10} />
+                ) : state === "active" ? (
+                  <Loader2 size={9} className="animate-spin" />
+                ) : null}
               </span>
               <span className={state === "pending" ? "text-mulberry/55" : "text-oxblood"}>
                 {STAGE_LABEL[stage]}
@@ -533,21 +581,43 @@ function ErrorBlock({
   onRetry: () => void;
 }) {
   const meta = {
-    network: { Icon: WifiOff, title: "Network error", body: "We couldn't reach GitHub. Check your connection and try again." },
-    unauthorized: { Icon: Shield, title: "Unauthorized", body: "Atlas isn't authorized on your GitHub account." },
-    expired: { Icon: AlertCircle, title: "Session expired", body: "Your GitHub session expired mid-flow." },
-    generic: { Icon: AlertCircle, title: "Authorization failed", body: "Something went wrong during sign-in." },
+    network: {
+      Icon: WifiOff,
+      title: "Network error",
+      body: "We couldn't reach GitHub. Check your connection and try again.",
+    },
+    unauthorized: {
+      Icon: Shield,
+      title: "Unauthorized",
+      body: "Atlas isn't authorized on your GitHub account.",
+    },
+    expired: {
+      Icon: AlertCircle,
+      title: "Session expired",
+      body: "Your GitHub session expired mid-flow.",
+    },
+    generic: {
+      Icon: AlertCircle,
+      title: "Authorization failed",
+      body: "Something went wrong during sign-in.",
+    },
   }[kind];
   const { Icon } = meta;
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6 }}
+    >
       <div className="flex gap-3 p-4 rounded-2xl bg-[#792E3C]/8 border border-[#792E3C]/20">
         <div className="h-9 w-9 rounded-xl bg-burgundy/15 text-burgundy flex items-center justify-center shrink-0">
           <Icon size={17} />
         </div>
         <div className="min-w-0">
           <div className="text-[14px] font-medium text-oxblood">{meta.title}</div>
-          <div className="text-[12.5px] text-mulberry/85 mt-1 leading-relaxed">{message || meta.body}</div>
+          <div className="text-[12.5px] text-mulberry/85 mt-1 leading-relaxed">
+            {message || meta.body}
+          </div>
         </div>
       </div>
       <button
@@ -624,7 +694,7 @@ function ProfilePanel({
             alt={profile.login}
             className="h-14 w-14 rounded-2xl object-cover ring-2 ring-oxblood/15"
             onError={(e) => {
-              (e.currentTarget.style.display = "none");
+              e.currentTarget.style.display = "none";
             }}
           />
           <span className="sr-only">{initials(profile.name)}</span>
@@ -633,7 +703,9 @@ function ProfilePanel({
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-serif text-[22px] text-oxblood leading-tight truncate">{profile.name}</div>
+          <div className="font-serif text-[22px] text-oxblood leading-tight truncate">
+            {profile.name}
+          </div>
           <a
             href={profile.htmlUrl}
             target="_blank"
@@ -650,8 +722,13 @@ function ProfilePanel({
 
       <div className="mt-5 grid grid-cols-4 gap-2">
         {stats.map((s) => (
-          <div key={s.label} className="rounded-xl border border-oxblood/10 bg-parchment/40 px-3 py-2.5 text-center">
-            <div className="font-serif text-[20px] text-oxblood leading-none">{s.value.toLocaleString()}</div>
+          <div
+            key={s.label}
+            className="rounded-xl border border-oxblood/10 bg-parchment/40 px-3 py-2.5 text-center"
+          >
+            <div className="font-serif text-[20px] text-oxblood leading-none">
+              {s.value.toLocaleString()}
+            </div>
             <div className="mt-1 text-[10.5px] font-mono uppercase tracking-[0.14em] text-mulberry/60">
               {s.label}
             </div>
@@ -684,7 +761,9 @@ function ProfilePanel({
         <Link
           to="/explore"
           className="col-span-3 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-oxblood text-parchment text-[13.5px] font-medium hover:bg-burgundy transition"
-          style={{ boxShadow: "inset 0 1px 0 rgba(240,230,177,0.2), 0 12px 30px -12px rgba(92,30,42,0.6)" }}
+          style={{
+            boxShadow: "inset 0 1px 0 rgba(240,230,177,0.2), 0 12px 30px -12px rgba(92,30,42,0.6)",
+          }}
         >
           Continue to Explorer <ArrowRight size={15} />
         </Link>
@@ -748,7 +827,7 @@ function RepoStrip({
                   src={r.ownerAvatarUrl}
                   alt=""
                   className="h-6 w-6 rounded-md ring-1 ring-oxblood/10"
-                  onError={(e) => ((e.currentTarget.style.display = "none"))}
+                  onError={(e) => (e.currentTarget.style.display = "none")}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] text-oxblood truncate">

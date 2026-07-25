@@ -1,7 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence, useScroll, useTransform, useInView } from "motion/react";
+import { useNavigate } from "@tanstack/react-router";
 
+import { useAnalysis } from "@/context/AnalysisContext";
 export const Route = createFileRoute("/")({
   component: AtlasLanding,
 });
@@ -13,25 +15,52 @@ function LivingBackground() {
     <div className="pointer-events-none fixed inset-0 -z-10 atlas-stage atlas-noise">
       <motion.div
         className="atlas-blob"
-        style={{ width: 900, height: 900, top: "-20%", left: "-10%", background: "radial-gradient(circle, #F0E6B1, transparent 60%)" }}
+        style={{
+          width: 900,
+          height: 900,
+          top: "-20%",
+          left: "-10%",
+          background: "radial-gradient(circle, #F0E6B1, transparent 60%)",
+        }}
         animate={{ x: [0, 60, -20, 0], y: [0, 40, -30, 0] }}
         transition={{ duration: 28, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
         className="atlas-blob"
-        style={{ width: 800, height: 800, top: "10%", right: "-15%", background: "radial-gradient(circle, #C7886B, transparent 65%)", opacity: 0.55 }}
+        style={{
+          width: 800,
+          height: 800,
+          top: "10%",
+          right: "-15%",
+          background: "radial-gradient(circle, #C7886B, transparent 65%)",
+          opacity: 0.55,
+        }}
         animate={{ x: [0, -50, 30, 0], y: [0, 60, 20, 0] }}
         transition={{ duration: 32, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
         className="atlas-blob"
-        style={{ width: 1000, height: 1000, bottom: "-25%", left: "20%", background: "radial-gradient(circle, #8E3E4D, transparent 60%)", opacity: 0.4 }}
+        style={{
+          width: 1000,
+          height: 1000,
+          bottom: "-25%",
+          left: "20%",
+          background: "radial-gradient(circle, #8E3E4D, transparent 60%)",
+          opacity: 0.4,
+        }}
         animate={{ x: [0, 40, -30, 0], y: [0, -30, 20, 0] }}
         transition={{ duration: 36, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
         className="atlas-blob"
-        style={{ width: 600, height: 600, bottom: "5%", right: "5%", background: "radial-gradient(circle, #5C1E2A, transparent 55%)", opacity: 0.3 }}
+        style={{
+          width: 600,
+          height: 600,
+          bottom: "5%",
+          right: "5%",
+          background: "radial-gradient(circle, #5C1E2A, transparent 55%)",
+          opacity: 0.3,
+        }}
         animate={{ x: [0, -30, 20, 0], y: [0, 20, -40, 0] }}
         transition={{ duration: 40, repeat: Infinity, ease: "easeInOut" }}
       />
@@ -51,7 +80,12 @@ function AtlasMark({ size = 22 }: { size?: number }) {
         </linearGradient>
       </defs>
       <circle cx="16" cy="16" r="14" stroke="url(#atlas-mark)" strokeWidth="1.5" />
-      <path d="M16 2 C 22 10, 22 22, 16 30 M16 2 C 10 10, 10 22, 16 30 M2 16 H30" stroke="url(#atlas-mark)" strokeWidth="1.2" fill="none" />
+      <path
+        d="M16 2 C 22 10, 22 22, 16 30 M16 2 C 10 10, 10 22, 16 30 M2 16 H30"
+        stroke="url(#atlas-mark)"
+        strokeWidth="1.2"
+        fill="none"
+      />
     </svg>
   );
 }
@@ -66,7 +100,11 @@ function Nav() {
         </div>
         <div className="h-5 w-px bg-oxblood/15" />
         {["Documentation", "Features", "Demo"].map((l) => (
-          <a key={l} href={`#${l.toLowerCase()}`} className="px-3.5 py-1.5 text-[13px] text-mulberry/80 hover:text-oxblood transition rounded-full hover:bg-oxblood/5">
+          <a
+            key={l}
+            href={`#${l.toLowerCase()}`}
+            className="px-3.5 py-1.5 text-[13px] text-mulberry/80 hover:text-oxblood transition rounded-full hover:bg-oxblood/5"
+          >
             {l}
           </a>
         ))}
@@ -100,7 +138,16 @@ const MOCK = {
     { name: "docs", depth: 0, kind: "dir" },
     { name: "package.json", depth: 0, kind: "file" },
   ],
-  deps: ["react", "react-dom", "webpack", "swc", "postcss", "styled-jsx", "acorn", "amphtml-validator"],
+  deps: [
+    "react",
+    "react-dom",
+    "webpack",
+    "swc",
+    "postcss",
+    "styled-jsx",
+    "acorn",
+    "amphtml-validator",
+  ],
   nodes: [
     { id: "core", label: "Core", x: 50, y: 50, r: 34 },
     { id: "server", label: "Server", x: 20, y: 25, r: 22 },
@@ -110,8 +157,13 @@ const MOCK = {
     { id: "cli", label: "CLI", x: 50, y: 92, r: 14 },
   ],
   edges: [
-    ["core", "server"], ["core", "client"], ["core", "compiler"], ["core", "router"],
-    ["server", "router"], ["client", "router"], ["cli", "core"],
+    ["core", "server"],
+    ["core", "client"],
+    ["core", "compiler"],
+    ["core", "router"],
+    ["server", "router"],
+    ["client", "router"],
+    ["cli", "core"],
   ],
 };
 
@@ -119,10 +171,35 @@ function Hero() {
   const [phase, setPhase] = useState<"idle" | "loading" | "revealed">("idle");
   const [value, setValue] = useState("https://github.com/vercel/next.js");
 
+  const navigate = useNavigate();
+
+  const { setError, error } = useAnalysis();
+
   const analyze = () => {
-    if (phase !== "idle") return;
+    if (phase === "loading") return;
+
+    if (!value.trim()) {
+      setError("Please enter a GitHub repository URL.");
+      return;
+    }
+
+    const githubRegex = /^https?:\/\/github\.com\/[^/]+\/[^/]+\/?$/;
+
+    if (!githubRegex.test(value.trim())) {
+      setError("Please enter a valid GitHub repository URL.");
+      return;
+    }
+
+    setError(null);
+
     setPhase("loading");
-    setTimeout(() => setPhase("revealed"), 1400);
+
+    navigate({
+      to: "/loading",
+      search: {
+        repo: value.trim(),
+      },
+    });
   };
 
   return (
@@ -139,8 +216,8 @@ function Hero() {
           transition={{ delay: 0.1, duration: 0.8 }}
           className="mb-8 flex items-center gap-2 px-4 py-1.5 rounded-full acrylic text-[12px] text-mulberry tracking-wide"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-burgundy animate-pulse" />
-          A workspace for reading unfamiliar codebases
+          <span className="w-1.5 h-1.5 rounded-full bg-burgundy animate-pulse" />A workspace for
+          reading unfamiliar codebases
         </motion.div>
 
         <motion.h1
@@ -155,14 +232,18 @@ function Hero() {
         </motion.h1>
 
         {/* Input row */}
-        <motion.div
-          layout
-          className="mt-14 w-full max-w-2xl"
-        >
+        <motion.div layout className="mt-14 w-full max-w-2xl">
           <div className="acrylic-strong flex items-center gap-2 p-2 rounded-2xl">
             <div className="pl-4 text-mulberry/60">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49v-1.7c-2.78.62-3.37-1.35-3.37-1.35-.45-1.17-1.11-1.48-1.11-1.48-.91-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9v2.82c0 .27.18.59.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              >
+                <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49v-1.7c-2.78.62-3.37-1.35-3.37-1.35-.45-1.17-1.11-1.48-1.11-1.48-.91-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9v2.82c0 .27.18.59.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z" />
               </svg>
             </div>
             <input
@@ -178,7 +259,8 @@ function Hero() {
               whileHover={{ scale: 1.02 }}
               className="relative px-6 py-3 rounded-xl bg-burgundy text-parchment text-[14px] font-medium tracking-wide overflow-hidden group"
               style={{
-                boxShadow: "inset 0 1px 0 rgba(255,240,210,0.25), 0 8px 24px -8px rgba(92,30,42,0.5)",
+                boxShadow:
+                  "inset 0 1px 0 rgba(255,240,210,0.25), 0 8px 24px -8px rgba(92,30,42,0.5)",
               }}
             >
               <span className="relative z-10 flex items-center gap-2">
@@ -200,9 +282,13 @@ function Hero() {
               <span className="absolute inset-0 bg-gradient-to-r from-transparent via-parchment/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
             </motion.button>
           </div>
-          <p className="mt-3 text-center text-[12px] text-mulberry/60">
-            Try it with any public repository — no sign-in required.
-          </p>
+          {error ? (
+            <p className="mt-3 text-center text-sm text-red-500">{error}</p>
+          ) : (
+            <p className="mt-3 text-center text-[12px] text-mulberry/60">
+              Try it with any public repository — no sign-in required.
+            </p>
+          )}
         </motion.div>
 
         {/* Revealed product */}
@@ -224,10 +310,14 @@ function Hero() {
                 className="col-span-12 acrylic-strong p-5 rounded-2xl flex flex-wrap items-center gap-6"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-terracotta to-burgundy flex items-center justify-center text-parchment font-serif text-xl">n</div>
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-terracotta to-burgundy flex items-center justify-center text-parchment font-serif text-xl">
+                    n
+                  </div>
                   <div>
                     <div className="font-mono text-[15px] text-oxblood">{MOCK.name}</div>
-                    <div className="text-[12px] text-mulberry/60">Analyzed just now · {MOCK.files.toLocaleString()} files</div>
+                    <div className="text-[12px] text-mulberry/60">
+                      Analyzed just now · {MOCK.files.toLocaleString()} files
+                    </div>
                   </div>
                 </div>
                 <Stat label="Stars" value={MOCK.stars} />
@@ -255,7 +345,9 @@ function Hero() {
                       style={{ paddingLeft: n.depth * 14 }}
                     >
                       <span className="text-mulberry/40">{n.kind === "dir" ? "▸" : "·"}</span>
-                      <span className={n.kind === "dir" ? "text-oxblood" : "text-mulberry/70"}>{n.name}</span>
+                      <span className={n.kind === "dir" ? "text-oxblood" : "text-mulberry/70"}>
+                        {n.name}
+                      </span>
                     </motion.div>
                   ))}
                 </div>
@@ -280,12 +372,15 @@ function Hero() {
                 className="col-span-12 md:col-span-3 acrylic p-5 rounded-2xl"
               >
                 <PanelTitle>Summary</PanelTitle>
-                <p className="mt-3 text-[13px] leading-relaxed text-mulberry">
-                  {MOCK.summary}
-                </p>
+                <p className="mt-3 text-[13px] leading-relaxed text-mulberry">{MOCK.summary}</p>
                 <div className="mt-4 flex flex-wrap gap-1.5">
                   {["React", "SSR", "Webpack", "SWC", "Routing"].map((t) => (
-                    <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-oxblood/8 text-mulberry">{t}</span>
+                    <span
+                      key={t}
+                      className="text-[11px] px-2 py-0.5 rounded-full bg-oxblood/8 text-mulberry"
+                    >
+                      {t}
+                    </span>
                   ))}
                 </div>
               </motion.div>
@@ -301,7 +396,9 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   return (
     <div className="flex flex-col">
       <span className="text-[11px] uppercase tracking-widest text-mulberry/50">{label}</span>
-      <span className={`text-[15px] font-medium ${accent ? "text-burgundy" : "text-oxblood"}`}>{value}</span>
+      <span className={`text-[15px] font-medium ${accent ? "text-burgundy" : "text-oxblood"}`}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -334,7 +431,10 @@ function ArchGraph({ className }: { className?: string }) {
         return (
           <motion.line
             key={i}
-            x1={na.x} y1={na.y} x2={nb.x} y2={nb.y}
+            x1={na.x}
+            y1={na.y}
+            x2={nb.x}
+            y2={nb.y}
             stroke="#8E3E4D"
             strokeOpacity="0.35"
             strokeWidth="0.4"
@@ -379,11 +479,23 @@ function ArchGraph({ className }: { className?: string }) {
 /* --------------------------- Section 2: Workflow --------------------------- */
 
 const STEPS = [
-  { title: "Paste Repository", body: "A single URL is enough. No installation, no auth, no setup." },
-  { title: "Atlas scans the project", body: "Files, folders, manifests, and imports are read in seconds." },
-  { title: "Architecture discovered", body: "Modules and their relationships surface as a live graph." },
+  {
+    title: "Paste Repository",
+    body: "A single URL is enough. No installation, no auth, no setup.",
+  },
+  {
+    title: "Atlas scans the project",
+    body: "Files, folders, manifests, and imports are read in seconds.",
+  },
+  {
+    title: "Architecture discovered",
+    body: "Modules and their relationships surface as a live graph.",
+  },
   { title: "Dependencies mapped", body: "Every internal edge and external package accounted for." },
-  { title: "Repository explained", body: "A calm narrative summary — written for humans, not crawlers." },
+  {
+    title: "Repository explained",
+    body: "A calm narrative summary — written for humans, not crawlers.",
+  },
 ];
 
 function Workflow() {
@@ -496,7 +608,12 @@ const CAPS: Capability[] = [
     Preview: () => (
       <div className="grid grid-cols-3 gap-2">
         {["TypeScript", "React", "Node.js", "Webpack", "SWC", "PostCSS"].map((t) => (
-          <div key={t} className="text-[12px] text-center py-2 rounded-lg bg-oxblood/5 text-mulberry border border-oxblood/10">{t}</div>
+          <div
+            key={t}
+            className="text-[12px] text-center py-2 rounded-lg bg-oxblood/5 text-mulberry border border-oxblood/10"
+          >
+            {t}
+          </div>
         ))}
       </div>
     ),
@@ -532,10 +649,15 @@ const CAPS: Capability[] = [
     blurb: "Complexity, coupling, hot paths — the things worth reading first.",
     Preview: () => (
       <div className="space-y-2">
-        {[["Complexity", 62], ["Coupling", 34], ["Coverage", 81]].map(([l, v]) => (
+        {[
+          ["Complexity", 62],
+          ["Coupling", 34],
+          ["Coverage", 81],
+        ].map(([l, v]) => (
           <div key={l as string}>
             <div className="flex justify-between text-[11px] text-mulberry/70 mb-0.5">
-              <span>{l}</span><span>{v}%</span>
+              <span>{l}</span>
+              <span>{v}%</span>
             </div>
             <div className="h-1.5 rounded-full bg-oxblood/10 overflow-hidden">
               <motion.div
@@ -565,7 +687,9 @@ function Capabilities() {
           transition={{ duration: 0.8 }}
           className="max-w-2xl"
         >
-          <p className="text-[12px] uppercase tracking-[0.22em] text-mulberry/70">What Atlas understands</p>
+          <p className="text-[12px] uppercase tracking-[0.22em] text-mulberry/70">
+            What Atlas understands
+          </p>
           <h2 className="mt-4 font-serif text-[clamp(36px,5vw,64px)] leading-[1.05] text-oxblood">
             Seven views of the same repository.
           </h2>
@@ -582,19 +706,29 @@ function Capabilities() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.6, delay: i * 0.05, layout: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } }}
+                transition={{
+                  duration: 0.6,
+                  delay: i * 0.05,
+                  layout: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+                }}
                 whileHover={{ y: -3 }}
                 className={`acrylic p-6 rounded-2xl text-left group ${isOpen ? "md:col-span-2 lg:col-span-2 row-span-2" : ""}`}
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-mulberry/60">{String(i + 1).padStart(2, "0")}</div>
-                    <h3 className="mt-2 font-serif text-[24px] text-oxblood leading-tight">{c.title}</h3>
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-mulberry/60">
+                      {String(i + 1).padStart(2, "0")}
+                    </div>
+                    <h3 className="mt-2 font-serif text-[24px] text-oxblood leading-tight">
+                      {c.title}
+                    </h3>
                   </div>
                   <motion.span
                     animate={{ rotate: isOpen ? 45 : 0 }}
                     className="text-mulberry/50 text-2xl leading-none"
-                  >+</motion.span>
+                  >
+                    +
+                  </motion.span>
                 </div>
                 <p className="mt-3 text-[13.5px] text-mulberry/80 leading-relaxed">{c.blurb}</p>
                 <AnimatePresence>
@@ -667,7 +801,9 @@ function LivePreview() {
               <div className="grid grid-cols-12 min-h-[520px]">
                 {/* Explorer */}
                 <div className="col-span-3 border-r border-oxblood/10 p-4 bg-oxblood/[0.02]">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-mulberry/60 mb-3">Explorer</div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-mulberry/60 mb-3">
+                    Explorer
+                  </div>
                   <div className="font-mono text-[12px] space-y-1">
                     {MOCK.tree.map((n, i) => (
                       <div
@@ -685,17 +821,23 @@ function LivePreview() {
                 {/* Center: graph + summary */}
                 <div className="col-span-6 p-6 flex flex-col gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-terracotta to-burgundy flex items-center justify-center text-parchment font-serif">n</div>
+                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-terracotta to-burgundy flex items-center justify-center text-parchment font-serif">
+                      n
+                    </div>
                     <div>
                       <div className="font-mono text-[13px] text-oxblood">{MOCK.name}</div>
-                      <div className="text-[11px] text-mulberry/60">Architecture · 6 modules · 12 edges</div>
+                      <div className="text-[11px] text-mulberry/60">
+                        Architecture · 6 modules · 12 edges
+                      </div>
                     </div>
                   </div>
                   <div className="acrylic rounded-xl p-4 flex-1">
                     <ArchGraph />
                   </div>
                   <div className="acrylic rounded-xl p-4">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-mulberry/60">Summary</div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-mulberry/60">
+                      Summary
+                    </div>
                     <p className="mt-1.5 text-[12.5px] text-mulberry leading-relaxed">
                       {MOCK.summary}
                     </p>
@@ -704,18 +846,28 @@ function LivePreview() {
 
                 {/* Documentation */}
                 <div className="col-span-3 border-l border-oxblood/10 p-4 bg-oxblood/[0.02]">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-mulberry/60 mb-3">server/next-server.ts</div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-mulberry/60 mb-3">
+                    server/next-server.ts
+                  </div>
                   <div className="space-y-2 font-mono text-[11.5px] text-mulberry">
                     <div className="text-mulberry/50">// Entry for the Next.js server.</div>
-                    <div><span className="text-burgundy">export class</span> NextServer &#123;</div>
-                    <div className="pl-3"><span className="text-burgundy">async</span> handleRequest(req) &#123;</div>
+                    <div>
+                      <span className="text-burgundy">export class</span> NextServer &#123;
+                    </div>
+                    <div className="pl-3">
+                      <span className="text-burgundy">async</span> handleRequest(req) &#123;
+                    </div>
                     <div className="pl-6 text-mulberry/70">return this.router.match(req)</div>
                     <div className="pl-3">&#125;</div>
                     <div>&#125;</div>
-                    <div className="mt-4 text-[10px] uppercase tracking-[0.18em] text-mulberry/60">Uses</div>
+                    <div className="mt-4 text-[10px] uppercase tracking-[0.18em] text-mulberry/60">
+                      Uses
+                    </div>
                     <div className="flex flex-wrap gap-1">
                       {["router", "cache", "logger"].map((t) => (
-                        <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-oxblood/8">{t}</span>
+                        <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-oxblood/8">
+                          {t}
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -755,9 +907,14 @@ function FinalCTA() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             className="px-7 py-3.5 rounded-xl bg-oxblood text-parchment text-[14px] font-medium flex items-center gap-2"
-            style={{ boxShadow: "inset 0 1px 0 rgba(240,230,177,0.2), 0 12px 30px -12px rgba(92,30,42,0.6)" }}
+            style={{
+              boxShadow:
+                "inset 0 1px 0 rgba(240,230,177,0.2), 0 12px 30px -12px rgba(92,30,42,0.6)",
+            }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49v-1.7c-2.78.62-3.37-1.35-3.37-1.35-.45-1.17-1.11-1.48-1.11-1.48-.91-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9v2.82c0 .27.18.59.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.09.68-.22.68-.49v-1.7c-2.78.62-3.37-1.35-3.37-1.35-.45-1.17-1.11-1.48-1.11-1.48-.91-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9v2.82c0 .27.18.59.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2z" />
+            </svg>
             Continue with GitHub
           </motion.button>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
