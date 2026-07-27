@@ -55,6 +55,10 @@ class AnalysisResponse(BaseModel):
     health: HealthAnalysis
     activity: ActivityAnalysis
     classification: ProjectClassification
+    summary: RepositorySummary
+
+class RepositorySummary(BaseModel):
+    overview: str
 
 class ProjectClassification(BaseModel):
     project_type: str

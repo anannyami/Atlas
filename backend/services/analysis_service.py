@@ -9,10 +9,11 @@ from models.analysis import (
     ProjectClassification,
     HealthAnalysis,
     ActivityAnalysis,
+    RepositorySummary,
 )
 
 from services.github_service import GitHubService
-
+from services.analyzers.repository_summary import RepositorySummaryAnalyzer
 from services.analyzers.structure import StructureAnalyzer
 from services.analyzers.tech_stack import TechStackAnalyzer
 from services.analyzers.architecture import ArchitectureAnalyzer
@@ -20,7 +21,7 @@ from services.analyzers.classification import (
     ProjectClassificationAnalyzer,
 )
 from services.analyzers.structure import build_repository_tree
-
+from services.analyzers.repository_summary import RepositorySummaryAnalyzer
 from services.analyzers.health import HealthAnalyzer
 from services.analyzers.activity import ActivityAnalyzer
 
@@ -109,6 +110,7 @@ class AnalysisService:
         self.classification_analyzer = ProjectClassificationAnalyzer()
         self.health_analyzer = HealthAnalyzer()
         self.activity_analyzer = ActivityAnalyzer()
+        self.summary_analyzer = RepositorySummaryAnalyzer()
 
     async def analyze_repository(
         self,
@@ -359,6 +361,14 @@ class AnalysisService:
             open_pr_count,
         )
 
+        summary = self.summary_analyzer.analyze(
+            metadata,
+            tech_stack,
+            architecture,
+            health,
+            activity,
+        )
+
         return AnalysisResponse(
 
             repository=RepositoryInfo(
@@ -401,6 +411,10 @@ class AnalysisService:
 
             activity=ActivityAnalysis(
                 **activity,
+            ),
+
+            summary=RepositorySummary(
+                **summary,
             ),
 
         )
