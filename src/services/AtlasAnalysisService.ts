@@ -13,7 +13,7 @@ interface AnalyzeRepositoryApiResponse {
 
 export const AtlasAnalysisService = {
   async analyzeRepository(repoUrl: string, signal?: AbortSignal): Promise<AnalysisResponse> {
-    const response = await request<AnalyzeRepositoryApiResponse>("/analyze", {
+    const response = await request<AnalysisResponse>("/analyze", {
       method: "POST",
       body: {
         repo_url: repoUrl,
@@ -21,6 +21,6 @@ export const AtlasAnalysisService = {
       signal,
     });
 
-    return response.data;
+    return response;
   },
 };
