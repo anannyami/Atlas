@@ -1,5 +1,6 @@
 import asyncio
 import base64
+from urllib.parse import parse_qs, urlparse
 
 from core.github_client import GitHubClient
 
@@ -111,7 +112,7 @@ class GitHubService:
     # ---------------------------------------------------------
     # Issues
     # ---------------------------------------------------------
-
+    """
     async def get_issue_count(
         self,
         owner: str,
@@ -120,28 +121,56 @@ class GitHubService:
         return await self.github.get(
             "/search/issues",
             params={
-                "q": f"repo:{owner}/{repo} type:issue state:open"
+                "q": f"repo:{owner}/{repo} is:issue is:open"
             },
         )
+    """
 
-    # ---------------------------------------------------------
-    # Pull Requests
-    # ---------------------------------------------------------
+    async def get_issue_count(
+        self,
+        owner: str,
+        repo: str,
+    ):
+        repository = await self.github.get(
+            f"/repos/{owner}/{repo}"
+        )
 
+        return {
+            "total_count": repository.get("open_issues_count", 0),
+        }
+    
     async def get_pull_request_count(
         self,
         owner: str,
         repo: str,
     ):
-        return await self.github.get(
-            "/search/issues",
+        response = await self.github.get_response(
+            f"/repos/{owner}/{repo}/pulls",
             params={
-                "q": f"repo:{owner}/{repo} type:pr state:open"
+                "state": "open",
+                "per_page": 1,
             },
         )
 
-    
+        last_link = response.links.get("last")
 
+        if last_link and last_link.get("url"):
+            parsed = urlparse(last_link["url"])
+            page_values = parse_qs(parsed.query).get("page", [])
+
+            if page_values:
+                try:
+                    return {
+                        "total_count": int(page_values[0]),
+                    }
+                except ValueError:
+                    pass
+
+        return {
+            "total_count": len(response.json()),
+        }
+
+    
     # ---------------------------------------------------------
     # Pull Requests
     # ---------------------------------------------------------
@@ -190,12 +219,6 @@ class GitHubService:
             f"/repos/{owner}/{repo}/readme"
         )
 
-        print("get_readme() executed")
-        print("Type:", type(response))
-
-        if isinstance(response, dict):
-            print("Keys:", response.keys())
-
         content = ""
 
         if isinstance(response, dict):
@@ -208,10 +231,7 @@ class GitHubService:
                         errors="ignore",
                     )
                 except Exception as e:
-                    print("README decode failed:", e)
                     content = ""
-
-        print("Returning README type:", type(content))
 
         return content
 
@@ -238,19 +258,6 @@ class GitHubService:
         )
 
     
-
-    # Temporary debugging (remove after Task 3.1 is complete)
-        print("\n========== GITHUB TREE DEBUG ==========")
-        print("SHA:", response.get("sha"))
-        print("Truncated:", response.get("truncated"))
-        print("Items Returned:", len(response.get("tree", [])))
-
-        if response.get("tree"):
-            print("\nFirst 10 entries:")
-            for item in response["tree"][:10]:
-                print(f"{item['type']:4} | {item['path']}")
-
-        print("=======================================\n")
 
         return response
 

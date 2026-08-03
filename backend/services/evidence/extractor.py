@@ -24,11 +24,11 @@ class EvidenceExtractor:
 
             topics=repository.topics,
 
-            frontend=knowledge.tech_stack.get("frontend", []),
-            backend=knowledge.tech_stack.get("backend", []),
-            databases=knowledge.tech_stack.get("database", []),
-            cloud=knowledge.tech_stack.get("cloud", []),
-            cicd=knowledge.tech_stack.get("ci_cd", []),
+            frontend=knowledge.tech_stack.frontend,
+            backend=knowledge.tech_stack.backend,
+            databases=knowledge.tech_stack.database,
+            cloud=knowledge.tech_stack.cloud,
+            cicd=knowledge.tech_stack.ci_cd,
 
             architecture=dump(knowledge.architecture),
             structure=dump(knowledge.structure),

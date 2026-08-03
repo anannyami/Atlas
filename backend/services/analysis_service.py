@@ -327,18 +327,6 @@ class AnalysisService:
 
         files_to_download = list(dict.fromkeys(files_to_download))
 
-        # Remove duplicates while preserving order
-        files_to_download = list(dict.fromkeys(files_to_download))
-
-        print("\n========== TECH STACK DEBUG ==========")
-        print(f"Candidate files found: {len(files_to_download)}")
-
-        print("Downloading:")
-        for path in files_to_download:
-            print(path)
-
-        print("======================================\n")
-
         files_to_download = files_to_download[:30]
         important_files = await self.github.get_multiple_files(
             owner,
@@ -510,15 +498,11 @@ class AnalysisService:
 
         default_branch = metadata["default_branch"]
 
-        print("Fetching repository tree...")
-
         tree_response = await self.github.get_repository_tree(
             owner,
             repo,
             default_branch,
         )
-
-        print("Repository tree fetched successfully")
 
         tree = tree_response.get(
             "tree",

@@ -37,20 +37,15 @@ class RepositoryIdentityAnalyzer:
 
             topics=knowledge.repository.topics,
 
-            frontend=knowledge.tech_stack.get(
-                "frontend",
-                [],
-            ),
-
-            backend=knowledge.tech_stack.get(
-                "backend",
-                [],
-            ),
-
-            languages=knowledge.tech_stack.get(
-                "languages",
-                [],
-            ),
+            frontend=knowledge.tech_stack.frontend,
+            backend=knowledge.tech_stack.backend,
+            languages=knowledge.tech_stack.languages,
+            database=knowledge.tech_stack.database,
+            cloud=knowledge.tech_stack.cloud,
+            ci_cd=knowledge.tech_stack.ci_cd,
+            package_managers=knowledge.tech_stack.package_managers,
+            mobile=knowledge.tech_stack.mobile,
+            containers=knowledge.tech_stack.containers,
 
             directories=major_dirs,
 

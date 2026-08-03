@@ -53,11 +53,11 @@ class GitHubClient:
             ),
         )
 
-    async def get(
+    async def _request(
         self,
         endpoint: str,
         params: dict | None = None,
-    ) -> Any:
+    ) -> httpx.Response:
 
         url = f"{self.BASE_URL}{endpoint}"
 
@@ -67,17 +67,10 @@ class GitHubClient:
                 params=params,
             )
         except httpx.RemoteProtocolError:
-            # Retry once if GitHub closes the connection mid-stream.
             response = await self.client.get(
                 url,
                 params=params,
             )
-
-        print("===== GITHUB RATE LIMIT =====")
-        print("Remaining:", response.headers.get("X-RateLimit-Remaining"))
-        print("Limit:", response.headers.get("X-RateLimit-Limit"))
-        print("Reset:", response.headers.get("X-RateLimit-Reset"))
-        print("=============================")
 
         if response.status_code == 404:
             raise GitHubAPIError(
@@ -92,50 +85,42 @@ class GitHubClient:
             )
 
         if response.status_code == 403:
-            print("\n========== GITHUB 403 DEBUG ==========")
-            print("URL:", url)
-            print("Status:", response.status_code)
-            print("Remaining:", response.headers.get("X-RateLimit-Remaining"))
-            print("Limit:", response.headers.get("X-RateLimit-Limit"))
-            print("Response Body:")
-            print(response.text)
-            print("======================================\n")
-
             raise GitHubAPIError(
                 response.status_code,
                 response.text,
             )
-
-        """
-
-        if response.status_code == 403:
-
-            remaining = response.headers.get(
-                "X-RateLimit-Remaining",
-                "",
-            )
-
-            if remaining == "0":
-
-                raise GitHubAPIError(
-                    429,
-                    "GitHub rate limit exceeded.",
-                )
-
-            raise GitHubAPIError(
-                403,
-                "Access forbidden.",
-            )
-        """
 
         if response.status_code >= 400:
-
             raise GitHubAPIError(
                 response.status_code,
                 response.text,
             )
 
+        return response
+
+    async def get(
+        self,
+        endpoint: str,
+        params: dict | None = None,
+    ) -> Any:
+
+        response = await self._request(
+            endpoint,
+            params=params,
+        )
+
         return response.json()
+
+    async def get_response(
+        self,
+        endpoint: str,
+        params: dict | None = None,
+    ) -> httpx.Response:
+
+        return await self._request(
+            endpoint,
+            params=params,
+        )
 
     
 
@@ -146,4 +131,3 @@ class GitHubClient:
 
         await self.client.aclose()
 
-print("GitHub token loaded:", bool(settings.GITHUB_TOKEN))
