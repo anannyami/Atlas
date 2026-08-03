@@ -25,22 +25,14 @@ export default function Activity() {
   ];
 
   const summaries = [
-    {
-      title: "Community Size",
-      value: activity.community_size,
-    },
-    {
-      title: "Activity Level",
-      value: activity.activity_level,
-    },
-    {
-      title: "Maintenance Status",
-      value: activity.maintenance_status,
-    },
-    {
-      title: "Repository Maturity",
-      value: activity.repository_maturity,
-    },
+    { title: "Community Size", value: activity.community_size },
+    { title: "Activity Level", value: activity.activity_level },
+    { title: "Maintenance Status", value: activity.maintenance_status },
+    { title: "Repository Maturity", value: activity.repository_maturity },
+    { title: "Commit Frequency", value: activity.commit_frequency || "Unknown" },
+    { title: "Issue Frequency", value: activity.issue_frequency || "Unknown" },
+    { title: "PR Frequency", value: activity.pr_frequency || "Unknown" },
+    { title: "Staleness", value: activity.staleness || "Unknown" },
     {
       title: "Last Commit",
       value:
@@ -56,7 +48,6 @@ export default function Activity() {
         <p className="mt-2 text-mulberry">Community engagement and repository activity insights.</p>
       </div>
 
-      {/* Metrics */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map((metric) => (
           <div
@@ -70,7 +61,6 @@ export default function Activity() {
         ))}
       </div>
 
-      {/* Repository Insights */}
       <div className="mt-10 rounded-2xl border border-oxblood/10 bg-white/50 backdrop-blur-md p-6 shadow-sm">
         <h3 className="text-xl font-semibold text-oxblood mb-6">Repository Insights</h3>
 
@@ -86,6 +76,22 @@ export default function Activity() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="mt-10 rounded-2xl border border-oxblood/10 bg-white/50 backdrop-blur-md p-6 shadow-sm">
+        <h3 className="text-xl font-semibold text-oxblood mb-4">Activity Explanations</h3>
+
+        {activity.explanations.length > 0 ? (
+          <ul className="space-y-3 text-mulberry">
+            {activity.explanations.map((item) => (
+              <li key={item} className="rounded-xl border border-oxblood/10 bg-white/60 p-4">
+                {item}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-mulberry">No additional explanations were generated.</p>
+        )}
       </div>
     </section>
   );

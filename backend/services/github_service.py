@@ -184,10 +184,36 @@ class GitHubService:
         self,
         owner: str,
         repo: str,
-    ):
-        return await self.github.get(
+    ) -> str:
+
+        response = await self.github.get(
             f"/repos/{owner}/{repo}/readme"
         )
+
+        print("get_readme() executed")
+        print("Type:", type(response))
+
+        if isinstance(response, dict):
+            print("Keys:", response.keys())
+
+        content = ""
+
+        if isinstance(response, dict):
+            content = response.get("content", "")
+
+            if response.get("encoding") == "base64":
+                try:
+                    content = base64.b64decode(content).decode(
+                        "utf-8",
+                        errors="ignore",
+                    )
+                except Exception as e:
+                    print("README decode failed:", e)
+                    content = ""
+
+        print("Returning README type:", type(content))
+
+        return content
 
     # ---------------------------------------------------------
     # Repository Tree

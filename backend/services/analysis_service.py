@@ -1,8 +1,6 @@
 import asyncio
 
 from models.analysis import (
-    AnalysisResponse,
-    ArchitectureAnalysis,
     RepositoryInfo,
     StructureAnalysis,
     TechStackAnalysis,
@@ -12,18 +10,33 @@ from models.analysis import (
     RepositorySummary,
 )
 
+from models.analysis import ArchitectureAnalysis
+from models.architecture_blueprint import ArchitectureBlueprint
+from models.dna import RepositoryDNA
 from services.github_service import GitHubService
-from services.analyzers.repository_summary import RepositorySummaryAnalyzer
-from services.analyzers.structure import StructureAnalyzer
+from models.response import AnalysisResponse
+from services.analyzers.structure import (
+    StructureAnalyzer,
+    build_repository_tree,
+)
 from services.analyzers.tech_stack import TechStackAnalyzer
 from services.analyzers.architecture import ArchitectureAnalyzer
 from services.analyzers.classification import (
     ProjectClassificationAnalyzer,
 )
-from services.analyzers.structure import build_repository_tree
-from services.analyzers.repository_summary import RepositorySummaryAnalyzer
 from services.analyzers.health import HealthAnalyzer
+from services.analyzers.product_identity import ProductIdentityAnalyzer
 from services.analyzers.activity import ActivityAnalyzer
+from services.analyzers.repository_identity import RepositoryIdentityAnalyzer
+from services.intelligence_engine import IntelligenceEngine
+from services.analyzers.repository_summary import (
+    RepositorySummaryAnalyzer,
+)
+from services.analyzers.purpose import PurposeAnalyzer
+
+from services.knowledge.builder import KnowledgeBuilder
+
+from services.architecture_blueprint_builder import ArchitectureBlueprintBuilder
 
 class AnalysisService:
     """
@@ -104,13 +117,19 @@ class AnalysisService:
     def __init__(self):
 
         self.github = GitHubService()
-
         self.structure_analyzer = StructureAnalyzer()
         self.tech_stack_analyzer = TechStackAnalyzer()
-        self.classification_analyzer = ProjectClassificationAnalyzer()
         self.health_analyzer = HealthAnalyzer()
         self.activity_analyzer = ActivityAnalyzer()
         self.summary_analyzer = RepositorySummaryAnalyzer()
+        self.architecture_analyzer = ArchitectureAnalyzer()
+        self.classification_analyzer = ProjectClassificationAnalyzer()
+        self.knowledge_builder = KnowledgeBuilder()
+        self.purpose_analyzer = PurposeAnalyzer()
+        self.product_identity_analyzer = ProductIdentityAnalyzer()
+        self.repository_identity_analyzer = RepositoryIdentityAnalyzer()
+        self.intelligence_engine = IntelligenceEngine()
+        self.architecture_blueprint_builder = ArchitectureBlueprintBuilder()
 
     async def analyze_repository(
         self,
@@ -169,6 +188,8 @@ class AnalysisService:
             "tree",
             [],
         )
+
+        repository_tree = build_repository_tree(tree)
 
         tree_paths = {
             item["path"]
@@ -325,23 +346,30 @@ class AnalysisService:
             files_to_download,
         )
 
-        structure = self.structure_analyzer.analyze(
-            tree,
-        )
-
         tech_stack = self.tech_stack_analyzer.analyze(
             tree,
             important_files,
         )
 
-        architecture = ArchitectureAnalyzer().analyze(
+        structure = self.structure_analyzer.analyze(
             tree,
             important_files,
+            tech_stack,
+        )
+
+        architecture = self.architecture_analyzer.analyze(
+            tree,
+            important_files,
+            tech_stack,
+            metadata,
+            readme,
         )
 
         classification = self.classification_analyzer.analyze(
             tree,
             tech_stack,
+            metadata,
+            readme,
         )
 
         health = self.health_analyzer.analyze(
@@ -349,6 +377,8 @@ class AnalysisService:
             tree,
             tech_stack,
             releases,
+            readme,
+            important_files,
         )
 
         activity = self.activity_analyzer.analyze(
@@ -361,34 +391,73 @@ class AnalysisService:
             open_pr_count,
         )
 
+
+        repository=RepositoryInfo(
+            name=metadata["name"],
+            full_name=metadata["full_name"],
+            owner=metadata["owner"]["login"],
+            owner_avatar=metadata["owner"]["avatar_url"],
+            description=metadata["description"],
+            html_url=metadata["html_url"],
+            default_branch=metadata["default_branch"],
+            language=metadata["language"],
+            topics=metadata.get("topics", []),
+            stars=metadata["stargazers_count"],
+            forks=metadata["forks_count"],
+            watchers=metadata["watchers_count"],
+            open_issues=open_issue_count,
+            created_at=metadata["created_at"],
+            updated_at=metadata["updated_at"],
+        )
+
+        knowledge = self.knowledge_builder.build(
+            repository=repository,
+            readme=readme,
+            tree=repository_tree,
+            architecture=architecture,
+            structure=structure,
+            tech_stack=tech_stack,
+            health=health,
+            activity=activity,
+            contributors=contributors,
+            branches=branches,
+            releases=releases,
+            issues=issues,
+            pull_requests=pull_requests,
+        )
+
+        blueprint = self.architecture_blueprint_builder.build(
+            knowledge
+        )
+
+        product_identity = self.product_identity_analyzer.analyze(
+            knowledge,
+        )
+
+        repository_identity = self.repository_identity_analyzer.analyze(
+            knowledge,
+        )
+
+        purpose = self.purpose_analyzer.analyze(
+            knowledge,
+            product_identity,
+        )
+
         summary = self.summary_analyzer.analyze(
             metadata,
+            readme,
             tech_stack,
             architecture,
+            classification,
+            structure,
             health,
             activity,
         )
 
         return AnalysisResponse(
 
-            repository=RepositoryInfo(
-                name=metadata["name"],
-                full_name=metadata["full_name"],
-                owner=metadata["owner"]["login"],
-                owner_avatar=metadata["owner"]["avatar_url"],
-                description=metadata["description"],
-                html_url=metadata["html_url"],
-                default_branch=metadata["default_branch"],
-                language=metadata["language"],
-                topics=metadata.get("topics", []),
-                stars=metadata["stargazers_count"],
-                forks=metadata["forks_count"],
-                watchers=metadata["watchers_count"],
-                open_issues=open_issue_count,
-                created_at=metadata["created_at"],
-                updated_at=metadata["updated_at"],
-            ),
-
+            repository=repository,
+            
             structure=StructureAnalysis(
                 **structure,
             ),
@@ -417,6 +486,11 @@ class AnalysisService:
                 **summary,
             ),
 
+            purpose=purpose,
+            product_identity=product_identity,
+            repository_identity=repository_identity,
+            knowledge=knowledge,
+            blueprint=blueprint,
         )
 
     async def get_repository_tree(
@@ -427,6 +501,7 @@ class AnalysisService:
         """
         Fetch and build the repository tree.
         """
+        
 
         metadata = await self.github.get_repository_metadata(
             owner,

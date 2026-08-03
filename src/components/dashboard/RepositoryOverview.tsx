@@ -1,47 +1,66 @@
 import { useAnalysis } from "@/context/AnalysisContext";
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between border-b border-border/40 py-2">
-      <span className="font-medium text-muted-foreground">{label}</span>
-      <span className="text-right">{value}</span>
-    </div>
-  );
+function Badge({ text }: { text: string }) {
+  return <span className="rounded-full bg-secondary px-3 py-1 text-sm">{text}</span>;
 }
 
 export default function RepositoryOverview() {
-  const { repository, tech_stack, classification } = useAnalysis();
+  const { repository, summary } = useAnalysis();
 
-  if (!repository || !tech_stack || !classification) {
-    return <div className="text-center py-20">No repository selected.</div>;
+  if (!repository || !summary) {
+    return null;
   }
 
-  const format = (items: string[]) => (items.length ? items.join(", ") : "Not detected");
-
   return (
-    <section className="rounded-xl border bg-card p-6 shadow-sm">
-      <h2 className="text-2xl font-bold mb-6">Repository Overview</h2>
+    <section className="space-y-8">
+      <div>
+        <h2 className="text-5xl font-serif">Repository Intelligence</h2>
 
-      <div className="space-y-1">
-        <InfoRow label="Languages" value={format(tech_stack.languages)} />
+        <p className="text-muted-foreground mt-2">
+          Automatically generated repository understanding.
+        </p>
+      </div>
 
-        <InfoRow label="Frontend" value={format(tech_stack.frontend)} />
+      <div className="rounded-2xl border bg-card p-8 space-y-8">
+        <div>
+          <h3 className="text-xl font-semibold mb-3">Overview</h3>
 
-        <InfoRow label="Backend" value={format(tech_stack.backend)} />
+          <p className="leading-8 text-base">{summary.overview}</p>
+        </div>
 
-        <InfoRow label="Database" value={format(tech_stack.database)} />
+        <div>
+          <h3 className="text-xl font-semibold mb-3">Purpose</h3>
 
-        <InfoRow label="Cloud" value={format(tech_stack.cloud)} />
+          <p className="leading-8 text-base">{summary.purpose}</p>
+        </div>
 
-        <InfoRow label="CI / CD" value={format(tech_stack.ci_cd)} />
+        <div>
+          <h3 className="text-xl font-semibold mb-3">Current Status</h3>
 
-        <InfoRow label="Containers" value={format(tech_stack.containers)} />
+          <p>{summary.current_status}</p>
+        </div>
 
-        <InfoRow label="Package Managers" value={format(tech_stack.package_managers)} />
+        <div>
+          <h3 className="text-xl font-semibold mb-4">Highlights</h3>
 
-        <InfoRow label="Mobile" value={format(tech_stack.mobile)} />
+          <div className="flex flex-wrap gap-3">
+            {summary.highlights.map((item) => (
+              <Badge key={item} text={item} />
+            ))}
+          </div>
+        </div>
 
-        <InfoRow label="Project Type" value={classification.project_type} />
+        <div>
+          <h3 className="text-xl font-semibold mb-4">Summary Sources</h3>
+
+          <div className="flex flex-wrap gap-3">
+            {summary.source_factors.length > 0 ? (
+              summary.source_factors.map((item) => <Badge key={item} text={item} />)
+            ) : (
+              <span className="text-muted-foreground">No source metadata available.</span>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );

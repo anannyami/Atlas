@@ -38,13 +38,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({
-  error,
-  reset,
-}: {
-  error: Error;
-  reset: () => void;
-}) {
+function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
 
   const router = useRouter();
@@ -63,8 +57,7 @@ function ErrorComponent({
         </h1>
 
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back
-          home.
+          Something went wrong on our end. You can try refreshing or head back home.
         </p>
 
         <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -90,75 +83,73 @@ function ErrorComponent({
   );
 }
 
-export const Route =
-  createRootRouteWithContext<{
-    queryClient: QueryClient;
-  }>()({
-    head: () => ({
-      meta: [
-        { charSet: "utf-8" },
-        {
-          name: "viewport",
-          content: "width=device-width, initial-scale=1",
-        },
-        {
-          title: "Atlas — Understand any codebase. Instantly.",
-        },
-        {
-          name: "description",
-          content:
-            "Atlas is a workspace for exploring unfamiliar software. Paste a GitHub URL and understand its architecture, dependencies, and project structure before reading a single file.",
-        },
-        {
-          property: "og:title",
-          content: "Atlas — Understand any codebase",
-        },
-        {
-          property: "og:description",
-          content:
-            "A premium workspace for exploring and understanding unfamiliar repositories.",
-        },
-        {
-          property: "og:type",
-          content: "website",
-        },
-        {
-          name: "twitter:card",
-          content: "summary_large_image",
-        },
-      ],
+export const Route = createRootRouteWithContext<{
+  queryClient: QueryClient;
+}>()({
+  head: () => ({
+    meta: [
+      { charSet: "utf-8" },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1",
+      },
+      {
+        title: "Atlas — Understand any codebase. Instantly.",
+      },
+      {
+        name: "description",
+        content:
+          "Atlas is a workspace for exploring unfamiliar software. Paste a GitHub URL and understand its architecture, dependencies, and project structure before reading a single file.",
+      },
+      {
+        property: "og:title",
+        content: "Atlas — Understand any codebase",
+      },
+      {
+        property: "og:description",
+        content: "A premium workspace for exploring and understanding unfamiliar repositories.",
+      },
+      {
+        property: "og:type",
+        content: "website",
+      },
+      {
+        name: "twitter:card",
+        content: "summary_large_image",
+      },
+    ],
 
-      links: [
-        {
-          rel: "stylesheet",
-          href: appCss,
-        },
-        {
-          rel: "icon",
-          href: "/favicon.ico",
-          type: "image/x-icon",
-        },
-        {
-          rel: "preconnect",
-          href: "https://fonts.googleapis.com",
-        },
-        {
-          rel: "preconnect",
-          href: "https://fonts.gstatic.com",
-          crossOrigin: "anonymous",
-        },
-        {
-          rel: "stylesheet",
-          href: "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap",
-        },
-      ],
-    }),
+    links: [
+      {
+        rel: "stylesheet",
+        href: appCss,
+      },
+      {
+        rel: "icon",
+        href: "/favicon.ico",
+        type: "image/x-icon",
+      },
+      {
+        rel: "preconnect",
+        href: "https://fonts.googleapis.com",
+      },
+      {
+        rel: "preconnect",
+        href: "https://fonts.gstatic.com",
+        crossOrigin: "anonymous",
+      },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap",
+      },
+    ],
+  }),
 
-    shellComponent: RootShell,
-    component: RootComponent,
-    notFoundComponent: NotFoundComponent,
-    errorComponent: ErrorComponent,
-  });
+  shellComponent: RootShell,
+  component: RootComponent,
+  notFoundComponent: NotFoundComponent,
+  errorComponent: ErrorComponent,
+});
 
 function RootShell({ children }: { children: ReactNode }) {
   return (

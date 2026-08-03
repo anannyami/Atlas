@@ -1,125 +1,173 @@
+from __future__ import annotations
+
 from typing import Any
 
 
 class RepositorySummaryAnalyzer:
     """
-    Generates a human-readable repository summary by combining
-    outputs from the other analyzers.
+    Generates a concise repository summary using repository metadata,
+    README text, detected topics, languages and the other phase-four analyses.
     """
 
     def analyze(
         self,
         metadata: dict[str, Any],
+        readme: str | None,
         tech_stack: dict,
         architecture: dict,
+        classification: dict,
+        structure: dict,
         health: dict,
         activity: dict,
     ) -> dict:
+        repository_name = metadata.get("name", "This repository")
+        description = self._clean_sentence(metadata.get("description"))
+        readme_summary = self._extract_readme_summary(readme)
+        topics = metadata.get("topics", []) or []
+        languages = tech_stack.get("languages", []) or []
 
-        languages = tech_stack["languages"]
-        frontend = tech_stack["frontend"]
-        backend = tech_stack["backend"]
-        database = tech_stack["database"]
+        primary_classification = classification.get("primary_classification") or classification.get("project_type") or "software project"
+        architecture_style = architecture.get("style", "standard repository")
+        architecture_summary = architecture.get("summary", "")
+        root_technologies = structure.get("root_technologies", []) or []
 
-        style = architecture["style"]
-        apps = architecture["applications"]
-
-        sentences = []
-
-        # --------------------------------------------------
-        # Project Type
-        # --------------------------------------------------
-
-        if frontend and backend:
-            sentences.append(
-                f"This repository is a full-stack project built with "
-                f"{', '.join(frontend)} and {', '.join(backend)}."
+        overview_parts = []
+        if description:
+            overview_parts.append(description)
+        elif readme_summary:
+            overview_parts.append(readme_summary)
+        elif topics:
+            overview_parts.append(
+                f"{repository_name} appears to focus on {', '.join(topics[:3])}."
             )
-
-        elif frontend:
-            sentences.append(
-                f"This repository is primarily a frontend application "
-                f"built using {', '.join(frontend)}."
-            )
-
-        elif backend:
-            sentences.append(
-                f"This repository is primarily a backend service "
-                f"implemented with {', '.join(backend)}."
-            )
-
-        elif languages:
-            sentences.append(
-                f"This project is mainly written in "
-                f"{', '.join(languages[:3])}."
-            )
-
-        # --------------------------------------------------
-        # Architecture
-        # --------------------------------------------------
-
-        if style == "Monorepo":
-
-            app_text = ", ".join(apps) if apps else "multiple applications"
-
-            sentences.append(
-                f"It follows a monorepo architecture containing {app_text}."
-            )
-
         else:
-
-            sentences.append(
-                "The repository follows a standard project structure."
+            overview_parts.append(
+                f"{repository_name} appears to be a {primary_classification.lower()}."
             )
 
-        # --------------------------------------------------
-        # Database
-        # --------------------------------------------------
-
-        if database:
-
-            sentences.append(
-                f"It uses {', '.join(database)} for data storage or caching."
+        if architecture_summary:
+            overview_parts.append(architecture_summary)
+        elif architecture_style:
+            overview_parts.append(
+                f"The repository follows a {architecture_style.lower()} architecture."
             )
 
-        # --------------------------------------------------
-        # Activity
-        # --------------------------------------------------
+        if languages:
+            overview_parts.append(
+                f"Primary languages detected include {', '.join(languages[:3])}."
+            )
 
-        activity_level = activity["activity_level"]
+        if root_technologies:
+            overview_parts.append(
+                f"Core technologies include {', '.join(root_technologies[:4])}."
+            )
 
-        maturity = activity["repository_maturity"]
-
-        sentences.append(
-            f"The project is currently {activity_level.lower()}ly active "
-            f"and is considered {maturity.lower()}."
+        overview_parts.append(
+            f"Repository health is {health.get('overall_status', 'unknown').lower()} and activity is {activity.get('activity_level', 'unknown').lower()}."
         )
 
-        # --------------------------------------------------
-        # Health
-        # --------------------------------------------------
+        purpose = self._build_purpose(
+            primary_classification=primary_classification,
+            architecture_style=architecture_style,
+            metadata=metadata,
+            readme_summary=readme_summary,
+            topics=topics,
+            languages=languages,
+        )
 
-        score = health["score"]
+        current_status = (
+            f"{activity.get('activity_level', 'Unknown')} activity • "
+            f"{activity.get('repository_maturity', 'Unknown')} repository • "
+            f"Health Score {health.get('score', 0)}/100"
+        )
 
-        if score >= 85:
+        highlights = []
+        if primary_classification:
+            highlights.append(f"Classification: {primary_classification}")
+        if architecture_style:
+            highlights.append(f"Architecture: {architecture_style}")
+        if languages:
+            highlights.append(f"Languages: {', '.join(languages[:4])}")
+        if root_technologies:
+            highlights.append(f"Technologies: {', '.join(root_technologies[:5])}")
+        if topics:
+            highlights.append(f"Topics: {', '.join(topics[:5])}")
+        highlights.append(f"Health: {health.get('score', 0)}/100")
+        highlights.append(f"Activity: {activity.get('activity_level', 'Unknown')}")
 
-            sentences.append(
-                "Overall repository health is excellent with modern "
-                "development practices."
-            )
-
-        elif score >= 70:
-
-            sentences.append(
-                "Overall repository health is good."
-            )
-
-        else:
-
-            sentences.append(
-                "Repository health could be improved."
-            )
+        source_factors = []
+        if description:
+            source_factors.append("description")
+        if readme_summary:
+            source_factors.append("README")
+        if topics:
+            source_factors.append("topics")
+        if languages:
+            source_factors.append("languages")
+        if architecture_style:
+            source_factors.append("architecture")
 
         return {
-            "overview": " ".join(sentences)
+            "overview": " ".join(part.strip() for part in overview_parts if part.strip()),
+            "purpose": purpose,
+            "current_status": current_status,
+            "highlights": self._dedupe(highlights),
+            "source_factors": self._dedupe(source_factors),
         }
+
+    def _build_purpose(
+        self,
+        *,
+        primary_classification: str,
+        architecture_style: str,
+        metadata: dict[str, Any],
+        readme_summary: str,
+        topics: list[str],
+        languages: list[str],
+    ) -> str:
+        description = self._clean_sentence(metadata.get("description"))
+
+        if description:
+            return description
+
+        if readme_summary:
+            return readme_summary
+
+        if topics:
+            return (
+                f"This repository appears to be a {primary_classification.lower()} focused on {', '.join(topics[:3])}."
+            )
+
+        if languages:
+            return (
+                f"This repository appears to be a {primary_classification.lower()} implemented primarily with {', '.join(languages[:3])}."
+            )
+
+        return f"This repository appears to be a {primary_classification.lower()} built using a {architecture_style.lower()} structure."
+
+    def _extract_readme_summary(self, readme: str | None) -> str:
+        if not readme:
+            return ""
+
+        lines = [line.strip() for line in readme.splitlines() if line.strip()]
+        for line in lines:
+            if line.startswith("#"):
+                continue
+            if len(line) >= 40:
+                return self._clean_sentence(line)
+
+        if lines:
+            return self._clean_sentence(lines[0])
+
+        return ""
+
+    def _clean_sentence(self, text: str | None) -> str:
+        if not text:
+            return ""
+        cleaned = text.strip()
+        if cleaned and cleaned[-1] not in ".!?":
+            cleaned += "."
+        return cleaned
+
+    def _dedupe(self, values: list[str]) -> list[str]:
+        return list(dict.fromkeys(values))

@@ -240,14 +240,7 @@ export interface ArchitectureGraph {
 }
 
 export type FileKind =
-  | "folder"
-  | "file"
-  | "component"
-  | "hook"
-  | "route"
-  | "config"
-  | "test"
-  | "doc";
+  "folder" | "file" | "component" | "hook" | "route" | "config" | "test" | "doc";
 
 export interface FileNode {
   path: string;

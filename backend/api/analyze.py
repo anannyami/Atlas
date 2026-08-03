@@ -5,9 +5,9 @@ from typing import List
 from fastapi import APIRouter
 from core.github_client import GitHubClient
 from models.analysis import RepositoryTreeNode
-
 from models.request import AnalyzeRepositoryRequest
-from models.response import AnalyzeRepositoryResponse
+from models.response import AnalysisResponse
+
 
 from services.analysis_service import AnalysisService
 
@@ -28,7 +28,7 @@ async def github_rate_limit():
 
 @router.post(
     "/analyze",
-    response_model=AnalyzeRepositoryResponse,
+    response_model=AnalysisResponse,
 )
 async def analyze_repository(
     request: AnalyzeRepositoryRequest,
@@ -54,10 +54,7 @@ async def analyze_repository(
             repo,
         )
 
-        return AnalyzeRepositoryResponse(
-            success=True,
-            data=analysis,
-        )
+        return AnalysisResponse(**analysis.dict())
 
     except InvalidRepositoryURL as exc:
         raise HTTPException(
