@@ -5,6 +5,7 @@ from core.config import settings
 from core.github_client import GitHubClient
 
 from api.analyze import router as analyze_router
+from api.chat import router as chat_router
 
 from services.repo_parser import parse_repo_url
 
@@ -45,6 +46,7 @@ app.add_middleware(
 )
 
 app.include_router(analyze_router)
+app.include_router(chat_router)
 
 # Create GitHub client
 """github = GitHubClient()"""

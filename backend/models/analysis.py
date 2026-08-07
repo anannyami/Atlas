@@ -9,6 +9,13 @@ class DetectedSignal(BaseModel):
     evidence: list[str] = Field(default_factory=list)
 
 
+class Technology(BaseModel):
+    name: str
+    category: str
+    confidence: float = 0.0
+    evidence: list[str] = Field(default_factory=list)
+
+
 class DirectoryInsight(BaseModel):
     path: str
     file_count: int = 0
@@ -76,6 +83,8 @@ class TechStackAnalysis(BaseModel):
 
     containers: list[str]
 
+    technologies: list[Technology] = Field(default_factory=list)
+
 
 class ArchitectureAnalysis(BaseModel):
     style: str
@@ -118,6 +127,9 @@ class ActivityAnalysis(BaseModel):
     recent_commits: int
     recent_pull_requests: int
     recent_issues: int
+    observed_samples: int = 0
+    total_samples: int = 0
+    open_pull_requests: int = 0
 
     releases: int
     last_commit_days: int | None

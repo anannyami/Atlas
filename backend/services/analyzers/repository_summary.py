@@ -6,7 +6,7 @@ from typing import Any
 class RepositorySummaryAnalyzer:
     """
     Generates a concise repository summary using repository metadata,
-    README text, detected topics, languages and the other phase-four analyses.
+    README text, and the canonical tech stack.
     """
 
     def analyze(
@@ -24,12 +24,16 @@ class RepositorySummaryAnalyzer:
         description = self._clean_sentence(metadata.get("description"))
         readme_summary = self._extract_readme_summary(readme)
         topics = metadata.get("topics", []) or []
-        languages = tech_stack.get("languages", []) or []
+        languages = list(tech_stack.get("languages", []) or [])
+        technology_names = [
+            item.get("name", "")
+            for item in (tech_stack.get("technologies", []) or [])
+            if isinstance(item, dict) and item.get("name")
+        ]
 
         primary_classification = classification.get("primary_classification") or classification.get("project_type") or "software project"
         architecture_style = architecture.get("style", "standard repository")
         architecture_summary = architecture.get("summary", "")
-        root_technologies = structure.get("root_technologies", []) or []
 
         overview_parts = []
         if description:
@@ -37,30 +41,19 @@ class RepositorySummaryAnalyzer:
         elif readme_summary:
             overview_parts.append(readme_summary)
         elif topics:
-            overview_parts.append(
-                f"{repository_name} appears to focus on {', '.join(topics[:3])}."
-            )
+            overview_parts.append(f"{repository_name} appears to focus on {', '.join(topics[:3])}.")
         else:
-            overview_parts.append(
-                f"{repository_name} appears to be a {primary_classification.lower()}."
-            )
+            overview_parts.append(f"{repository_name} appears to be a {primary_classification.lower()}.")
 
         if architecture_summary:
             overview_parts.append(architecture_summary)
         elif architecture_style:
-            overview_parts.append(
-                f"The repository follows a {architecture_style.lower()} architecture."
-            )
+            overview_parts.append(f"The repository follows a {architecture_style.lower()} architecture.")
 
         if languages:
-            overview_parts.append(
-                f"Primary languages detected include {', '.join(languages[:3])}."
-            )
-
-        if root_technologies:
-            overview_parts.append(
-                f"Core technologies include {', '.join(root_technologies[:4])}."
-            )
+            overview_parts.append(f"Primary languages are {', '.join(languages)}.")
+        if technology_names:
+            overview_parts.append(f"Detected technologies include {', '.join(technology_names)}.")
 
         overview_parts.append(
             f"Repository health is {health.get('overall_status', 'unknown').lower()} and activity is {activity.get('activity_level', 'unknown').lower()}."
@@ -87,9 +80,9 @@ class RepositorySummaryAnalyzer:
         if architecture_style:
             highlights.append(f"Architecture: {architecture_style}")
         if languages:
-            highlights.append(f"Languages: {', '.join(languages[:4])}")
-        if root_technologies:
-            highlights.append(f"Technologies: {', '.join(root_technologies[:5])}")
+            highlights.append(f"Languages: {', '.join(languages)}")
+        if technology_names:
+            highlights.append(f"Technologies: {', '.join(technology_names)}")
         if topics:
             highlights.append(f"Topics: {', '.join(topics[:5])}")
         highlights.append(f"Health: {health.get('score', 0)}/100")
@@ -106,6 +99,8 @@ class RepositorySummaryAnalyzer:
             source_factors.append("languages")
         if architecture_style:
             source_factors.append("architecture")
+        if technology_names:
+            source_factors.append("tech stack")
 
         return {
             "overview": " ".join(part.strip() for part in overview_parts if part.strip()),
@@ -126,39 +121,27 @@ class RepositorySummaryAnalyzer:
         languages: list[str],
     ) -> str:
         description = self._clean_sentence(metadata.get("description"))
-
         if description:
             return description
-
         if readme_summary:
             return readme_summary
-
         if topics:
-            return (
-                f"This repository appears to be a {primary_classification.lower()} focused on {', '.join(topics[:3])}."
-            )
-
+            return f"This repository appears to be a {primary_classification.lower()} focused on {', '.join(topics[:3])}."
         if languages:
-            return (
-                f"This repository appears to be a {primary_classification.lower()} implemented primarily with {', '.join(languages[:3])}."
-            )
-
+            return f"This repository appears to be a {primary_classification.lower()} implemented primarily with {', '.join(languages[:3])}."
         return f"This repository appears to be a {primary_classification.lower()} built using a {architecture_style.lower()} structure."
 
     def _extract_readme_summary(self, readme: str | None) -> str:
         if not readme:
             return ""
-
         lines = [line.strip() for line in readme.splitlines() if line.strip()]
         for line in lines:
             if line.startswith("#"):
                 continue
             if len(line) >= 40:
                 return self._clean_sentence(line)
-
         if lines:
             return self._clean_sentence(lines[0])
-
         return ""
 
     def _clean_sentence(self, text: str | None) -> str:
