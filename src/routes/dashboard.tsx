@@ -8,6 +8,7 @@ import ProjectStructure from "@/components/dashboard/ProjectStructure";
 import RepositoryHealth from "@/components/dashboard/RepositoryHealth";
 import Activity from "@/components/dashboard/Activity";
 import ProjectClassification from "@/components/dashboard/ProjectClassification";
+import ChatPanel from "@/components/dashboard/ChatPanel";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -23,6 +24,7 @@ function DashboardPage() {
       <RepositoryHealth />
       <Activity />
       <ProjectClassification />
+      <ChatPanel />
     </DashboardLayout>
   );
 }

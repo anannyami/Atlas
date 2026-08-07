@@ -81,9 +81,9 @@ export default function Activity() {
       <div className="mt-10 rounded-2xl border border-oxblood/10 bg-white/50 backdrop-blur-md p-6 shadow-sm">
         <h3 className="text-xl font-semibold text-oxblood mb-4">Activity Explanations</h3>
 
-        {activity.explanations.length > 0 ? (
+        {(activity.explanations ?? []).length > 0 ? (
           <ul className="space-y-3 text-mulberry">
-            {activity.explanations.map((item) => (
+            {(activity.explanations ?? []).map((item) => (
               <li key={item} className="rounded-xl border border-oxblood/10 bg-white/60 p-4">
                 {item}
               </li>

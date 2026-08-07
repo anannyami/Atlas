@@ -25,6 +25,13 @@ export interface DetectedSignal {
   evidence: string[];
 }
 
+export interface Technology {
+  name: string;
+  category: string;
+  confidence: number;
+  evidence: string[];
+}
+
 export interface TechStackAnalysis {
   languages: string[];
 
@@ -42,6 +49,7 @@ export interface TechStackAnalysis {
   mobile: string[];
 
   containers: string[];
+  technologies: Technology[];
 }
 
 export interface ArchitectureAnalysis {
@@ -106,6 +114,9 @@ export interface ActivityAnalysis {
   recent_commits: number;
   recent_pull_requests: number;
   recent_issues: number;
+  observed_samples: number;
+  total_samples: number;
+  open_pull_requests: number;
 
   releases: number;
   last_commit_days: number | null;

@@ -42,8 +42,8 @@ export default function ProjectClassification() {
         </div>
 
         <div className="mt-8 grid gap-4 md:grid-cols-2">
-          {secondary.length > 0 ? (
-            secondary.map((item) => (
+          {(secondary ?? []).length > 0 ? (
+            (secondary ?? []).map((item) => (
               <div
                 key={item.name}
                 className="rounded-xl border border-oxblood/10 bg-white/50 p-5 shadow-sm"
@@ -52,7 +52,7 @@ export default function ProjectClassification() {
                   <h3 className="font-medium text-oxblood">{item.name}</h3>
                   <span className="text-sm text-mulberry">{confidenceLabel(item.confidence)}</span>
                 </div>
-                {item.evidence.length > 0 ? (
+                {(item.evidence ?? []).length > 0 ? (
                   <p className="mt-3 text-sm text-mulberry">{item.evidence.join(" • ")}</p>
                 ) : null}
               </div>

@@ -36,7 +36,7 @@ export default function RepositoryHealth() {
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {Object.entries(health.component_scores).map(([label, value]) => (
+        {Object.entries(health.component_scores ?? {}).map(([label, value]) => (
           <div
             key={label}
             className="rounded-xl border border-oxblood/10 bg-white/50 backdrop-blur-md p-5 shadow-sm"
@@ -53,7 +53,7 @@ export default function RepositoryHealth() {
         <h3 className="text-xl font-semibold text-oxblood mb-4">Individual Checks</h3>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(health.checks).map(([check, passed]) => (
+          {Object.entries(health.checks ?? {}).map(([check, passed]) => (
             <div
               key={check}
               className="rounded-xl border border-oxblood/10 bg-white/60 p-4"
@@ -72,9 +72,9 @@ export default function RepositoryHealth() {
       <div className="mt-8 rounded-2xl border border-oxblood/10 bg-white/50 backdrop-blur-md p-6 shadow-sm">
         <h3 className="text-xl font-semibold text-oxblood mb-4">Missing Recommendations</h3>
 
-        {health.missing_recommendations.length > 0 ? (
+        {(health.missing_recommendations ?? []).length > 0 ? (
           <ul className="space-y-3 text-mulberry">
-            {health.missing_recommendations.map((item) => (
+            {(health.missing_recommendations ?? []).map((item) => (
               <li key={item} className="rounded-xl border border-oxblood/10 bg-white/60 p-4">
                 {item}
               </li>

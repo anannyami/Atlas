@@ -44,7 +44,7 @@ export default function RepositoryOverview() {
           <h3 className="text-xl font-semibold mb-4">Highlights</h3>
 
           <div className="flex flex-wrap gap-3">
-            {summary.highlights.map((item) => (
+            {(summary.highlights ?? []).map((item) => (
               <Badge key={item} text={item} />
             ))}
           </div>
@@ -54,8 +54,8 @@ export default function RepositoryOverview() {
           <h3 className="text-xl font-semibold mb-4">Summary Sources</h3>
 
           <div className="flex flex-wrap gap-3">
-            {summary.source_factors.length > 0 ? (
-              summary.source_factors.map((item) => <Badge key={item} text={item} />)
+            {(summary.source_factors ?? []).length > 0 ? (
+              (summary.source_factors ?? []).map((item) => <Badge key={item} text={item} />)
             ) : (
               <span className="text-muted-foreground">No source metadata available.</span>
             )}

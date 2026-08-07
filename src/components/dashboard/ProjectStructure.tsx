@@ -48,8 +48,8 @@ export default function ProjectStructure() {
         <p className="mt-2 text-sm text-mulberry">Primary folders detected in the repository.</p>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {structure.major_directories.length > 0 ? (
-            structure.major_directories.map((directory) => (
+          {(structure.major_directories ?? []).length > 0 ? (
+            (structure.major_directories ?? []).map((directory) => (
               <span
                 key={directory}
                 className="rounded-full bg-burgundy/10 px-4 py-2 text-sm font-medium text-burgundy"
@@ -67,8 +67,8 @@ export default function ProjectStructure() {
         <div className="rounded-2xl border border-oxblood/10 bg-white/50 backdrop-blur-md p-6 shadow-sm">
           <h3 className="text-xl font-semibold text-oxblood">Largest Directories</h3>
           <div className="mt-4 space-y-3">
-            {structure.largest_directories.length > 0 ? (
-              structure.largest_directories.map((item) => (
+            {(structure.largest_directories ?? []).length > 0 ? (
+              (structure.largest_directories ?? []).map((item) => (
                 <div key={item.path} className="flex items-center justify-between rounded-xl border border-oxblood/10 bg-white/60 p-4">
                   <span className="text-mulberry font-medium">{item.path}</span>
                   <span className="text-sm text-burgundy">{item.file_count} files</span>
@@ -83,8 +83,8 @@ export default function ProjectStructure() {
         <div className="rounded-2xl border border-oxblood/10 bg-white/50 backdrop-blur-md p-6 shadow-sm">
           <h3 className="text-xl font-semibold text-oxblood">Deepest Paths</h3>
           <div className="mt-4 space-y-3">
-            {structure.deepest_paths.length > 0 ? (
-              structure.deepest_paths.map((item) => (
+            {(structure.deepest_paths ?? []).length > 0 ? (
+              (structure.deepest_paths ?? []).map((item) => (
                 <div key={item.path} className="flex items-center justify-between rounded-xl border border-oxblood/10 bg-white/60 p-4">
                   <span className="text-mulberry font-medium">{item.path}</span>
                   <span className="text-sm text-burgundy">Depth {item.depth}</span>
@@ -101,8 +101,8 @@ export default function ProjectStructure() {
         <div className="rounded-2xl border border-oxblood/10 bg-white/50 backdrop-blur-md p-6 shadow-sm">
           <h3 className="text-xl font-semibold text-oxblood">Entry Points</h3>
           <div className="mt-4 flex flex-wrap gap-3">
-            {structure.entry_points.length > 0 ? (
-              structure.entry_points.map((item) => (
+            {(structure.entry_points ?? []).length > 0 ? (
+              (structure.entry_points ?? []).map((item) => (
                 <span key={item} className="rounded-full bg-burgundy/10 px-4 py-2 text-sm font-medium text-burgundy">
                   {item}
                 </span>
@@ -116,8 +116,8 @@ export default function ProjectStructure() {
         <div className="rounded-2xl border border-oxblood/10 bg-white/50 backdrop-blur-md p-6 shadow-sm">
           <h3 className="text-xl font-semibold text-oxblood">Configuration Files</h3>
           <div className="mt-4 flex flex-wrap gap-3">
-            {structure.configuration_files.length > 0 ? (
-              structure.configuration_files.map((item) => (
+            {(structure.configuration_files ?? []).length > 0 ? (
+              (structure.configuration_files ?? []).map((item) => (
                 <span key={item} className="rounded-full bg-burgundy/10 px-4 py-2 text-sm font-medium text-burgundy">
                   {item}
                 </span>
@@ -135,8 +135,8 @@ export default function ProjectStructure() {
         <p className="mt-3 text-mulberry">{structure.summary || "No summarized tree intelligence available."}</p>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {structure.important_folders.length > 0 ? (
-            structure.important_folders.map((item) => (
+          {(structure.important_folders ?? []).length > 0 ? (
+            (structure.important_folders ?? []).map((item) => (
               <span key={item} className="rounded-full bg-burgundy/10 px-4 py-2 text-sm font-medium text-burgundy">
                 {item}
               </span>
@@ -147,8 +147,8 @@ export default function ProjectStructure() {
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {structure.root_technologies.length > 0 ? (
-            structure.root_technologies.map((item) => (
+          {(structure.root_technologies ?? []).length > 0 ? (
+            (structure.root_technologies ?? []).map((item) => (
               <span key={item} className="rounded-full bg-secondary px-4 py-2 text-sm text-foreground">
                 {item}
               </span>
@@ -159,8 +159,8 @@ export default function ProjectStructure() {
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {structure.major_modules.length > 0 ? (
-            structure.major_modules.map((item) => (
+          {(structure.major_modules ?? []).length > 0 ? (
+            (structure.major_modules ?? []).map((item) => (
               <span key={item} className="rounded-full bg-secondary/80 px-4 py-2 text-sm text-foreground">
                 {item}
               </span>

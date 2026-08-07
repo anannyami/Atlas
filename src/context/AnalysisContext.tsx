@@ -69,9 +69,6 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [analysis, setAnalysisState] = useState<AnalysisResponse | null>(null);
 
   const setAnalysis = (analysis: AnalysisResponse) => {
-    console.log("SET ANALYSIS");
-    console.log(analysis);
-    console.log("SUMMARY:", analysis.summary);
     setRepository(analysis.repository);
     setStructure(analysis.structure);
     setTechStack(analysis.tech_stack);

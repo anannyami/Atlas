@@ -16,39 +16,39 @@ export default function TechStack() {
   const cards = [
     {
       title: "Languages",
-      values: techStack.languages.length > 0 ? techStack.languages : ["Not detected"],
+      values: (techStack.languages ?? []).length > 0 ? techStack.languages : ["Not detected"],
     },
     {
       title: "Frontend",
-      values: techStack.frontend.length > 0 ? techStack.frontend : ["Not detected"],
+      values: (techStack.frontend ?? []).length > 0 ? techStack.frontend : ["Not detected"],
     },
     {
       title: "Backend",
-      values: techStack.backend.length > 0 ? techStack.backend : ["Not detected"],
+      values: (techStack.backend ?? []).length > 0 ? techStack.backend : ["Not detected"],
     },
     {
       title: "Database",
-      values: techStack.database.length > 0 ? techStack.database : ["Not detected"],
+      values: (techStack.database ?? []).length > 0 ? techStack.database : ["Not detected"],
     },
     {
       title: "Cloud",
-      values: techStack.cloud.length > 0 ? techStack.cloud : ["Not detected"],
+      values: (techStack.cloud ?? []).length > 0 ? techStack.cloud : ["Not detected"],
     },
     {
       title: "CI / CD",
-      values: techStack.ci_cd.length > 0 ? techStack.ci_cd : ["Not detected"],
+      values: (techStack.ci_cd ?? []).length > 0 ? techStack.ci_cd : ["Not detected"],
     },
     {
       title: "Package Managers",
-      values: techStack.package_managers.length > 0 ? techStack.package_managers : ["Not detected"],
+      values: (techStack.package_managers ?? []).length > 0 ? techStack.package_managers : ["Not detected"],
     },
     {
       title: "Containers",
-      values: techStack.containers.length > 0 ? techStack.containers : ["Not detected"],
+      values: (techStack.containers ?? []).length > 0 ? techStack.containers : ["Not detected"],
     },
     {
       title: "Mobile",
-      values: techStack.mobile.length > 0 ? techStack.mobile : ["Not detected"],
+      values: (techStack.mobile ?? []).length > 0 ? techStack.mobile : ["Not detected"],
     },
   ];
 
