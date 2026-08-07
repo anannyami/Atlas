@@ -169,7 +169,7 @@ const MOCK = {
 
 function Hero() {
   const [phase, setPhase] = useState<"idle" | "loading" | "revealed">("idle");
-  const [value, setValue] = useState("https://github.com/vercel/next.js");
+  const [value, setValue] = useState("");
 
   const navigate = useNavigate();
 
