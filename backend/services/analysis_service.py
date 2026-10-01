@@ -151,9 +151,10 @@ class AnalysisService:
             commits,
             issues,
             pull_requests,
-            issue_count,
             pr_count,
+            total_pr_count,
             releases,
+            release_count,
             readme,
             tree_response,
         ) = await asyncio.gather(
@@ -166,10 +167,11 @@ class AnalysisService:
             self.github.get_issues(owner, repo),
             self.github.get_pull_requests(owner, repo),
 
-            self.github.get_issue_count(owner, repo),
             self.github.get_pull_request_count(owner, repo),
+            self.github.get_total_pull_request_count(owner, repo),
 
             self.github.get_releases(owner, repo),
+            self.github.get_release_count(owner, repo),
             self.github.get_readme(owner, repo),
 
             self.github.get_repository_tree(
@@ -181,8 +183,8 @@ class AnalysisService:
 
         # ← AFTER the gather finishes
 
-        open_issue_count = issue_count["total_count"]
         open_pr_count = pr_count["total_count"]
+        open_issue_count = max(metadata.get("open_issues_count", 0) - open_pr_count, 0)
 
         tree = tree_response.get(
             "tree",
@@ -377,6 +379,8 @@ class AnalysisService:
             releases,
             open_issue_count,
             open_pr_count,
+            total_pull_request_count=total_pr_count,
+            total_release_count=release_count,
         )
 
 

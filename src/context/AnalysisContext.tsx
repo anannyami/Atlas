@@ -16,6 +16,7 @@ import type {
 } from "@/types/atlas";
 
 interface AnalysisContextType {
+  analysisResponse: AnalysisResponse | null;
   repository: RepositoryInfo | null;
   structure: StructureAnalysis | null;
   techStack: TechStackAnalysis | null;
@@ -69,6 +70,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [analysis, setAnalysisState] = useState<AnalysisResponse | null>(null);
 
   const setAnalysis = (analysis: AnalysisResponse) => {
+    setAnalysisState(analysis);
     setRepository(analysis.repository);
     setStructure(analysis.structure);
     setTechStack(analysis.tech_stack);
@@ -86,6 +88,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   };
 
   const clearAnalysis = () => {
+    setAnalysisState(null);
     setRepository(null);
     setStructure(null);
     setTechStack(null);
@@ -105,6 +108,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   return (
     <AnalysisContext.Provider
       value={{
+        analysisResponse: analysis,
         repository,
         structure,
         techStack,

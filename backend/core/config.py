@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # LLM
     LLM_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str | None = None
-    MODEL_NAME: str = "gemini-flash-latest"
+    MODEL_NAME: str = "gemini-2.5-flash"
     TEMPERATURE: float = 0.2
     MAX_TOKENS: int = 1500
 
@@ -35,10 +35,5 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore",
     )
-
-print("CONFIG MODEL =", Settings().MODEL_NAME)
-print("CONFIG TEMP =", Settings().TEMPERATURE)
-print("CONFIG TOKENS =", Settings().MAX_TOKENS)
-print("CONFIG KEY PREFIX =", Settings().GEMINI_API_KEY[:15])
 
 settings = Settings()

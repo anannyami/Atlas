@@ -126,19 +126,6 @@ class GitHubService:
         )
     """
 
-    async def get_issue_count(
-        self,
-        owner: str,
-        repo: str,
-    ):
-        repository = await self.github.get(
-            f"/repos/{owner}/{repo}"
-        )
-
-        return {
-            "total_count": repository.get("open_issues_count", 0),
-        }
-    
     async def get_pull_request_count(
         self,
         owner: str,
@@ -152,23 +139,14 @@ class GitHubService:
             },
         )
 
-        last_link = response.links.get("last")
+        return {"total_count": self._total_count_from_response(response)}
 
-        if last_link and last_link.get("url"):
-            parsed = urlparse(last_link["url"])
-            page_values = parse_qs(parsed.query).get("page", [])
-
-            if page_values:
-                try:
-                    return {
-                        "total_count": int(page_values[0]),
-                    }
-                except ValueError:
-                    pass
-
-        return {
-            "total_count": len(response.json()),
-        }
+    async def get_total_pull_request_count(self, owner: str, repo: str) -> int:
+        response = await self.github.get_response(
+            f"/repos/{owner}/{repo}/pulls",
+            params={"state": "all", "per_page": 1},
+        )
+        return self._total_count_from_response(response)
 
     
     # ---------------------------------------------------------
@@ -204,6 +182,24 @@ class GitHubService:
                 "per_page": 10,
             },
         )
+
+    async def get_release_count(self, owner: str, repo: str) -> int:
+        response = await self.github.get_response(
+            f"/repos/{owner}/{repo}/releases",
+            params={"per_page": 1},
+        )
+        return self._total_count_from_response(response)
+
+    def _total_count_from_response(self, response) -> int:
+        last_link = response.links.get("last")
+        if last_link and last_link.get("url"):
+            page_values = parse_qs(urlparse(last_link["url"]).query).get("page", [])
+            if page_values:
+                try:
+                    return int(page_values[0])
+                except ValueError:
+                    pass
+        return len(response.json())
 
     # ---------------------------------------------------------
     # README

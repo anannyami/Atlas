@@ -1,33 +1,38 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 
 import ChatInput from "@/components/dashboard/ChatInput";
 import ChatWindow from "@/components/dashboard/ChatWindow";
 import SuggestedQuestions from "@/components/dashboard/SuggestedQuestions";
-import { useAnalysis } from "@/context/AnalysisContext";
 import { ConversationProvider, useConversation } from "@/context/ConversationContext";
 import { AtlasChatService, type ChatMessage } from "@/services/AtlasChatService";
 
 function ChatPanelContent() {
-  const { repository, summary, architecture, structure, techStack, health, activity, classification } = useAnalysis();
   const { messages, addMessage, clearMessages } = useConversation();
   const [loading, setLoading] = useState(false);
+  const requestInFlight = useRef(false);
 
-  const analysisPayload = useMemo(() => ({
-    repository,
-    summary,
-    architecture,
-    structure,
-    tech_stack: techStack,
-    health,
-    activity,
-    classification,
-  }), [repository, summary, architecture, structure, techStack, health, activity, classification]);
+  const analysisPayload = useMemo(() => {
+    const storedAnalysis = sessionStorage.getItem("atlas-analysis");
+    return storedAnalysis ? (JSON.parse(storedAnalysis) as Record<string, unknown>) : null;
+  }, []);
 
   const handleSend = async (value: string) => {
+    if (requestInFlight.current) return;
     const timestamp = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     const userMessage: ChatMessage = { role: "user", content: value, timestamp };
     addMessage(userMessage);
+
+    if (!analysisPayload) {
+      addMessage({
+        role: "assistant",
+        content: "Analyze a repository before asking Atlas a question.",
+        timestamp,
+      });
+      return;
+    }
+
+    requestInFlight.current = true;
     setLoading(true);
 
     try {
@@ -36,11 +41,20 @@ function ChatPanelContent() {
         analysis: analysisPayload,
         conversation: [...messages, userMessage],
       });
-      addMessage({ role: "assistant", content: response.answer, timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) });
+      addMessage({
+        role: "assistant",
+        content: response.answer,
+        timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+      });
     } catch (error) {
-      addMessage({ role: "assistant", content: "The assistant could not answer right now. Please try again in a moment.", timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) });
+      addMessage({
+        role: "assistant",
+        content: "The assistant could not answer right now. Please try again in a moment.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+      });
       console.error(error);
     } finally {
+      requestInFlight.current = false;
       setLoading(false);
     }
   };

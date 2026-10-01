@@ -17,7 +17,15 @@ class ActivityAnalyzer:
         releases: list[dict[str, Any]],
         open_issue_count: int,
         open_pr_count: int,
+        *,
+        total_pull_request_count: int | None = None,
+        total_release_count: int | None = None,
     ) -> dict:
+        analyzed_issues = [
+            issue
+            for issue in issues
+            if "pull_request" not in issue
+        ]
         last_commit_days = None
 
         community_size = "Small"
@@ -39,9 +47,9 @@ class ActivityAnalyzer:
         else:
             community_size = "Small"
 
-        recent_changes = len(commits) + len(pull_requests) + len(issues)
-        release_count = len(releases)
-        observed_samples = len(commits) + len(issues) + len(pull_requests)
+        recent_changes = len(commits) + len(pull_requests) + len(analyzed_issues)
+        release_count = total_release_count if total_release_count is not None else len(releases)
+        observed_samples = len(commits) + len(analyzed_issues) + len(pull_requests)
 
         activity_score = 0
         if last_commit_days is not None:
@@ -83,21 +91,21 @@ class ActivityAnalyzer:
             repository_maturity = "Early Stage"
 
         commit_frequency = self._frequency_label(len(commits), last_commit_days)
-        issue_frequency = self._frequency_label(len(issues), last_commit_days, open_issue_count)
+        issue_frequency = self._frequency_label(len(analyzed_issues), last_commit_days, open_issue_count)
         pr_frequency = self._frequency_label(len(pull_requests), last_commit_days, open_pr_count)
 
         staleness = self._staleness_label(last_commit_days)
 
         explanations.append(
-            f"The analyzer observed {len(commits)} commits, {len(issues)} issues, and {len(pull_requests)} pull requests from the fetched sample window."
+            f"Repository activity: latest commit {last_commit_days if last_commit_days is not None else 'unknown'} day(s) ago; "
+            f"{open_issue_count} open issues excluding pull requests; "
+            f"{total_pull_request_count if total_pull_request_count is not None else len(pull_requests)} pull requests across all states; "
+            f"{release_count} releases."
         )
         if last_commit_days is None:
             explanations.append("No recent commit history was available to measure maintenance cadence.")
         else:
             explanations.append(f"The latest commit appears to be {last_commit_days} day(s) old.")
-        explanations.append(
-            "These counts reflect fetched samples and recent API windows, not repository-wide totals unless the source API provides them directly."
-        )
         explanations.append(f"Release history contains {release_count} release(s), which informs maturity scoring.")
 
         return {
@@ -106,12 +114,12 @@ class ActivityAnalyzer:
             "watchers": metadata.get("subscribers_count", 0),
             "open_issues": open_issue_count,
             "recent_commits": len(commits),
-            "recent_pull_requests": len(pull_requests),
-            "recent_issues": len(issues),
+            "recent_pull_requests": total_pull_request_count if total_pull_request_count is not None else len(pull_requests),
+            "recent_issues": open_issue_count,
             "observed_samples": observed_samples,
             "total_samples": observed_samples,
             "open_pull_requests": open_pr_count,
-            "releases": len(releases),
+            "releases": release_count,
             "last_commit_days": last_commit_days,
             "community_size": community_size,
             "activity_level": activity_level,

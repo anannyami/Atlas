@@ -175,6 +175,18 @@ export interface RepositoryInfo {
   updated_at: string;
 }
 
+export interface RepositoryContributor {
+  login?: string;
+  contributions?: number;
+}
+
+export interface RepositoryRelease {
+  name?: string | null;
+  tag_name?: string;
+  published_at?: string | null;
+  created_at?: string;
+}
+
 export interface AnalysisResponse {
   repository: RepositoryInfo;
   structure: StructureAnalysis;
@@ -184,6 +196,10 @@ export interface AnalysisResponse {
   health: HealthAnalysis;
   activity: ActivityAnalysis;
   classification: ProjectClassification;
+  knowledge?: {
+    contributors?: RepositoryContributor[];
+    releases?: RepositoryRelease[];
+  };
   product_identity?: ProductIdentity;
   repository_identity?: RepositoryIdentity;
 }

@@ -61,9 +61,7 @@ class RepositoryIdentityAnalyzer:
             knowledge,
         )
 
-        print("\n========== IDENTITY EVIDENCE ==========")
-        print(evidence.model_dump())
-        print("=======================================\n")
+        
 
         return RepositoryIdentity(
             product_name=evidence.title,

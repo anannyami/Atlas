@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,7 +7,7 @@ from core.config import settings
 from core.github_client import GitHubClient
 
 from api.analyze import router as analyze_router
-from api.chat import router as chat_router
+from api.chat import chat_service, router as chat_router
 
 from services.repo_parser import parse_repo_url
 
@@ -13,10 +15,20 @@ from services.github_service import GitHubService
 
 
 
-# Create FastAPI app FIRST
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        yield
+    finally:
+        close_provider = getattr(chat_service.provider, "close", None)
+        if callable(close_provider):
+            close_provider()
+
+
 app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
+    lifespan=lifespan,
 )
 
 

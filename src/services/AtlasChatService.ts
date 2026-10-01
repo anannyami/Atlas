@@ -18,9 +18,26 @@ export interface ChatSource {
   snippet: string;
 }
 
+export interface ResponseValidationResult {
+  passed: boolean;
+  overall_score: number;
+  word_count: number;
+  missing_sections: string[];
+  missing_repository_evidence: string[];
+  missing_engineering_observations: string[];
+  generic_reasoning: boolean;
+  hallucination_risk: number;
+  followup_continuity: number;
+  issues: string[];
+  category_scores: Record<string, number>;
+  evidence_matches: string[];
+  synthesized_areas: string[];
+}
+
 export interface ChatResponse {
   answer: string;
   sources: ChatSource[];
+  validation: ResponseValidationResult | null;
 }
 
 export const AtlasChatService = {
@@ -28,6 +45,8 @@ export const AtlasChatService = {
     return request<ChatResponse>("/chat", {
       method: "POST",
       body: payload,
+      timeoutMs: 250_000,
+      retries: 0,
     });
   },
 };
