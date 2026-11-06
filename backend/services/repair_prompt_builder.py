@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from models.response_validation import ResponseValidationResult
+from services.response_validator import ResponseValidator
 
 
 class RepairPromptBuilder:
@@ -32,13 +33,24 @@ class RepairPromptBuilder:
         validation_result: ResponseValidationResult,
         question: str,
         repository_analysis: Mapping[str, Any],
+        *,
+        is_follow_up: bool = False,
     ) -> str:
         reasons = self._repair_reasons(validation_result)
         analysis_excerpt = self._analysis_excerpt(repository_analysis)
+        required_sections = ResponseValidator().required_sections_for_question(
+            question,
+            is_follow_up=is_follow_up,
+        )
+        section_guidance = (
+            "Use these useful headings for this question: " + ", ".join(required_sections) + "."
+            if required_sections
+            else "Answer directly without adding headings unless they materially improve clarity."
+        )
 
         return f"""You are repairing a repository-specific engineering answer after a quality check.
 
-Return only the complete corrected answer. Preserve accurate content from the original answer, fix each listed issue, and follow the required six-section response structure. Do not mention this repair process or the validation score.
+Return only the complete corrected answer. Preserve accurate content from the original answer and fix each listed issue. Do not mention this repair process or the validation score.
 
 Original user question:
 {question}
@@ -56,11 +68,12 @@ Repair rules:
 - Use repository facts only when supported by the analysis evidence above.
 - Do not invent files, technologies, behaviors, metrics, design decisions, or security controls.
 - If evidence is missing, explicitly state that it cannot be determined from the supplied analysis.
-- Include these headings: Short Answer, Repository Overview, Detailed Explanation, Repository Evidence, Engineering Observations, Conclusion.
-- Cite concrete analysis evidence in the Repository Evidence section.
-- Add engineering reasoning and relevant cross-area synthesis without repeating unrelated material.
+- {section_guidance}
+- Answer the question first and include concrete repository evidence where relevant.
+- Distinguish observed facts from reasonable engineering inferences and state source-level evidence gaps.
+- Add engineering reasoning and cross-area synthesis only when useful for this question.
 - If this is a follow-up, continue the established question and avoid repeating earlier explanations.
-- Follow the requested answer length unless the user asked for brevity or the available repository evidence is genuinely limited.
+- Match answer length to the question; do not pad simple answers or repeat unrelated context.
 """
 
     def _repair_reasons(self, result: ResponseValidationResult) -> list[str]:

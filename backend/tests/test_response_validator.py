@@ -32,10 +32,10 @@ ANALYSIS = {
 GOOD_RESPONSE = """# Short Answer
 Atlas is a repository intelligence application with a layered backend and a React frontend. The supplied analysis shows FastAPI in the backend stack and identifies API routes and service modules in the repository structure.
 
-# Repository Overview
+# Architecture Overview
 The repository is identified as acme/atlas and its summary says it helps engineers understand repositories. The purpose analysis describes a repository intelligence assistant. These purpose signals align with the documented Python and TypeScript implementation and the detected frontend and backend technologies.
 
-# Detailed Explanation
+# Main Components
 The architecture summary reports that API routes delegate to service modules, and the architecture style is classified as Layered. That is supported by the structure evidence: backend/main.py is an entry point and the top-level organization includes backend and src. The analysis therefore supports a separation between request-facing backend code and frontend code, although it does not provide enough source detail to infer every runtime interaction.
 
 FastAPI is a detected backend technology with requirements.txt as evidence, while React is detected from package.json. Together with the Python and TypeScript language signals, these findings describe a split web application rather than a single-language codebase. A likely engineering benefit of this organization is clearer responsibility boundaries; the tradeoff is that cross-layer behavior must remain consistent across separate frontend and backend code.
@@ -89,8 +89,9 @@ This project likely works as expected."""
             ANALYSIS,
             "Explain the repository",
         )
-        self.assertIn("Conclusion", result.missing_sections)
-        self.assertIn("Detailed Explanation", result.missing_sections)
+        self.assertIn("Repository Overview", result.missing_sections)
+        self.assertIn("Repository Evidence", result.missing_sections)
+        self.assertNotIn("Conclusion", result.missing_sections)
         self.assertFalse(result.passed)
 
     def test_reports_evidence_section_without_repository_facts(self) -> None:
@@ -103,22 +104,333 @@ This project likely works as expected."""
         result = self.validator.validate(response, ANALYSIS, "Explain the repository")
         self.assertTrue(result.missing_repository_evidence)
 
-    def test_scores_very_short_response_low_for_normal_question(self) -> None:
+    def test_response_length_is_not_forced_to_300_words(self) -> None:
         response = """# Short Answer
-Atlas uses FastAPI.
+Atlas helps engineers understand repositories.
 # Repository Overview
-acme/atlas is a repository tool.
-# Detailed Explanation
-FastAPI provides its API.
+The supplied summary describes Atlas as a repository intelligence assistant.
 # Repository Evidence
-FastAPI appears in requirements.txt.
-# Engineering Observations
-The backend is modular.
-# Conclusion
-Atlas is layered."""
-        result = self.validator.validate(response, ANALYSIS, "Explain the architecture")
-        self.assertLess(result.category_scores["length"], 1.0)
-        self.assertIn("300–800 word range", " ".join(result.issues))
+Atlas helps engineers understand repositories.
+"""
+        result = self.validator.validate(response, ANALYSIS, "What is this repository about?")
+        self.assertEqual(result.missing_sections, [])
+        self.assertEqual(result.category_scores["length"], 1.0)
+        self.assertNotIn("Response is longer than needed", " ".join(result.issues))
+
+    def test_extracts_standard_headings_and_preserves_section_content(self) -> None:
+        response = """# Short Answer
+Direct answer.
+## Repository Overview
+Purpose and capabilities.
+### Detailed Explanation
+Implementation details.
+## Repository Evidence
+Evidence content.
+## Engineering Observations
+Engineering implications.
+## Conclusion
+Final takeaway.
+"""
+        sections = self.validator._extract_sections(response)
+        self.assertEqual(sections["Short Answer"], "Direct answer.")
+        self.assertEqual(sections["Repository Overview"], "Purpose and capabilities.")
+        self.assertEqual(sections["Detailed Explanation"], "Implementation details.")
+        self.assertEqual(sections["Repository Evidence"], "Evidence content.")
+        self.assertEqual(sections["Engineering Observations"], "Engineering implications.")
+        self.assertEqual(sections["Conclusion"], "Final takeaway.")
+
+    def test_extracts_heading_aliases_and_bold_or_italic_titles(self) -> None:
+        response = """## **Repository Context**
+Context text.
+### *Explanation*
+Explanation text.
+## __Key Repository Evidence__
+Evidence text.
+## ***Engineering Analysis***
+Observations text.
+## _Engineering Conclusion_
+Conclusion text.
+"""
+        sections = self.validator._extract_sections(response)
+        self.assertEqual(sections["Repository Overview"], "Context text.")
+        self.assertEqual(sections["Detailed Explanation"], "Explanation text.")
+        self.assertEqual(sections["Repository Evidence"], "Evidence text.")
+        self.assertEqual(sections["Engineering Observations"], "Observations text.")
+        self.assertEqual(sections["Conclusion"], "Conclusion text.")
+
+    def test_empty_sections_and_missing_expected_sections_are_safe(self) -> None:
+        sections = self.validator._extract_sections(
+            "# Short Answer\n## Repository Overview\nOverview text.\n## Evidence\n"
+        )
+        self.assertEqual(sections["Short Answer"], "")
+        self.assertEqual(sections["Repository Overview"], "Overview text.")
+        self.assertEqual(sections["Repository Evidence"], "")
+
+        result = self.validator.validate(
+            "# Short Answer\nDirect answer.",
+            ANALYSIS,
+            "Which technologies are used?",
+        )
+        self.assertIn("Detected Technologies", result.missing_sections)
+        self.assertIn("Repository Evidence", result.missing_sections)
+
+    def test_architecture_required_sections_use_canonical_alias_keys(self) -> None:
+        required_sections = self.validator.required_sections_for_question(
+            "Explain the architecture."
+        )
+
+        self.assertEqual(
+            required_sections,
+            (
+                "Short Answer",
+                "Architecture Overview",
+                "Main Components",
+                "Repository Evidence",
+                "Engineering Observations",
+            ),
+        )
+        self.assertTrue(set(required_sections).issubset(self.validator.SECTION_ALIASES))
+
+    def test_general_question_requires_canonical_repository_evidence_section(self) -> None:
+        required_sections = self.validator.required_sections_for_question(
+            "How are the different parts represented in the supplied information?"
+        )
+
+        self.assertEqual(required_sections, ("Short Answer", "Repository Evidence"))
+        self.assertTrue(set(required_sections).issubset(self.validator.SECTION_ALIASES))
+
+    def test_all_question_profiles_return_only_canonical_section_names(self) -> None:
+        questions = (
+            "What is this repository about?",
+            "Explain the architecture.",
+            "Which technologies are used?",
+            "Explain this function's implementation.",
+            "How healthy is the repository?",
+            "What improvements would you recommend?",
+            "How are the different parts represented in the supplied information?",
+        )
+
+        for question in questions:
+            with self.subTest(question=question):
+                required_sections = self.validator.required_sections_for_question(question)
+                self.assertTrue(
+                    set(required_sections).issubset(self.validator.SECTION_ALIASES),
+                    f"Non-canonical section name in {required_sections!r}",
+                )
+
+    def test_key_components_heading_maps_to_main_components(self) -> None:
+        sections = self.validator._extract_sections(
+            "## Key Components\nThe API and service modules have separate responsibilities."
+        )
+
+        self.assertEqual(
+            sections["Main Components"],
+            "The API and service modules have separate responsibilities.",
+        )
+
+    def test_simple_followup_does_not_require_all_repository_headings(self) -> None:
+        result = self.validator.validate(
+            "The routes delegate to service modules, so request handling and business logic remain separate.",
+            ANALYSIS,
+            "Why?",
+            is_follow_up=True,
+        )
+        self.assertTrue(result.passed, result.issues)
+        self.assertTrue(result.evidence_matches)
+        self.assertEqual(result.missing_sections, [])
+        self.assertEqual(self.validator.required_sections_for_question("Why?", is_follow_up=True), ())
+
+    def test_followup_requires_analysis_evidence_even_with_continuity(self) -> None:
+        result = self.validator.validate(
+            "It is adequate.",
+            ANALYSIS,
+            "Why?",
+            is_follow_up=True,
+            conversation_state={"current_topic": "adequate"},
+        )
+
+        self.assertIn(
+            "No specific fact from the supplied analysis was identifiable in the response.",
+            result.missing_repository_evidence,
+        )
+        self.assertFalse(result.passed)
+
+    def test_followup_repository_claim_fails_when_analysis_has_no_evidence(self) -> None:
+        result = self.validator.validate(
+            "The repository is a microservice architecture.",
+            {},
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertIn(
+            "No extractable repository evidence is available to validate this follow-up response.",
+            result.missing_repository_evidence,
+        )
+        self.assertFalse(result.passed)
+
+    def test_followup_architecture_claim_requires_architecture_evidence(self) -> None:
+        result = self.validator.validate(
+            "Atlas is a microservice architecture.",
+            {"repository": {"name": "atlas"}},
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertIn(
+            "The follow-up contains an architectural claim without matching architecture evidence.",
+            result.missing_repository_evidence,
+        )
+        self.assertFalse(result.passed)
+
+    def test_followup_technology_claim_requires_technology_evidence(self) -> None:
+        result = self.validator.validate(
+            "Atlas uses Django.",
+            {"repository": {"name": "atlas"}},
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertIn(
+            "The follow-up contains a technology claim without matching technology evidence.",
+            result.missing_repository_evidence,
+        )
+        self.assertFalse(result.passed)
+
+    def test_followup_claim_with_sparse_matching_architecture_evidence_can_pass(self) -> None:
+        result = self.validator.validate(
+            "The architecture is Layered.",
+            {"architecture": {"style": "Layered"}},
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertTrue(result.passed, result.issues)
+        self.assertEqual(result.missing_repository_evidence, [])
+
+    def test_followup_supported_technology_does_not_mask_unsupported_technology(self) -> None:
+        result = self.validator.validate(
+            "Atlas uses FastAPI and Celery.",
+            {"tech_stack": {"backend": ["FastAPI"]}},
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertIn(
+            "The follow-up contains a technology claim without matching technology evidence.",
+            result.missing_repository_evidence,
+        )
+        self.assertFalse(result.passed)
+
+    def test_followup_supported_architecture_does_not_mask_unsupported_mechanism(self) -> None:
+        result = self.validator.validate(
+            "Atlas has a Layered architecture that uses message queues.",
+            {"architecture": {"style": "Layered"}},
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertIn(
+            "The follow-up contains an architectural claim without matching architecture evidence.",
+            result.missing_repository_evidence,
+        )
+        self.assertFalse(result.passed)
+
+    def test_fully_supported_technology_followup_can_pass(self) -> None:
+        result = self.validator.validate(
+            "Atlas uses FastAPI.",
+            {"tech_stack": {"backend": ["FastAPI"]}},
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertTrue(result.passed, result.issues)
+        self.assertEqual(result.missing_repository_evidence, [])
+
+    def test_multiple_supported_technology_claims_can_pass(self) -> None:
+        result = self.validator.validate(
+            "Atlas uses FastAPI and Celery.",
+            {"tech_stack": {"backend": ["FastAPI", "Celery"]}},
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertTrue(result.passed, result.issues)
+        self.assertEqual(result.missing_repository_evidence, [])
+
+    def test_fully_supported_architecture_followup_can_pass(self) -> None:
+        result = self.validator.validate(
+            "Atlas has a Layered architecture.",
+            {"architecture": {"style": "Layered"}},
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertTrue(result.passed, result.issues)
+        self.assertEqual(result.missing_repository_evidence, [])
+
+    def test_supported_architecture_and_mechanism_claims_can_pass(self) -> None:
+        result = self.validator.validate(
+            "Atlas has a Layered architecture that uses message queues.",
+            {
+                "architecture": {
+                    "style": "Layered",
+                    "summary": "The system uses message queues.",
+                },
+            },
+            "Why?",
+            is_follow_up=True,
+        )
+
+        self.assertTrue(result.passed, result.issues)
+        self.assertEqual(result.missing_repository_evidence, [])
+
+    def test_followup_with_matching_repository_evidence_can_pass(self) -> None:
+        result = self.validator.validate(
+            "The backend architecture is Layered: API routes delegate to service modules. "
+            "This keeps request handling separate from service responsibilities.",
+            ANALYSIS,
+            "Why?",
+            is_follow_up=True,
+            conversation_state={"current_topic": "architecture", "current_component": "backend"},
+        )
+
+        self.assertTrue(result.passed, result.issues)
+        self.assertTrue(result.evidence_matches)
+        self.assertEqual(result.missing_repository_evidence, [])
+
+    def test_followup_does_not_treat_question_technology_as_repository_evidence(self) -> None:
+        result = self.validator.validate(
+            "It uses Django.",
+            ANALYSIS,
+            "Does it use Django?",
+            is_follow_up=True,
+            conversation_state={"current_topic": "Django"},
+        )
+
+        self.assertGreater(result.hallucination_risk, 0.0)
+        self.assertTrue(any("Django" in issue for issue in result.issues))
+        self.assertFalse(result.passed)
+
+    def test_profile_and_classification_words_do_not_match_code_substrings(self) -> None:
+        for question in (
+            "What is the profile of this repository?",
+            "What is the project classification?",
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(self.validator._response_profile(question, False), "overview")
+
+    def test_ordinary_markdown_and_fenced_code_are_not_section_headings(self) -> None:
+        text = """A paragraph containing # Short Answer is ordinary text.
+
+**Bold paragraph**, not a heading.
+- ## list text
+
+```markdown
+# Repository Evidence
+```
+"""
+        self.assertEqual(self.validator._extract_sections(text), {})
 
     def test_followup_checks_topic_continuity_and_repetition(self) -> None:
         response = """# Short Answer

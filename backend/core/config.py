@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str | None = None
     MODEL_NAME: str = "gemini-2.5-flash"
+    GROQ_API_KEY: str | None = None
+    GROQ_MODEL: str = "qwen/qwen3.8-27b"
     TEMPERATURE: float = 0.2
     MAX_TOKENS: int = 1500
 

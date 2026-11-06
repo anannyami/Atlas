@@ -2,7 +2,7 @@ import sys
 import unittest
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -143,6 +143,121 @@ class ChatServiceTests(unittest.TestCase):
         self.assertIn("Explain the architecture.", prompt)
         self.assertIn("Recent Conversation Summary", prompt)
         self.assertIn("What architecture does this use?", prompt)
+        self.assertIn("Answer the user's actual question first.", prompt)
+        self.assertIn(
+            "Useful headings for this question: Short Answer, Architecture Overview, "
+            "Main Components, Repository Evidence, Engineering Observations.",
+            prompt,
+        )
+        self.assertNotIn("300–800 words", prompt)
+
+    def test_architecture_prompt_qualifies_heuristics_and_rejects_unsupported_inferences(self) -> None:
+        provider = Mock(spec=["generate"])
+        provider.generate.return_value = (
+            "The analyzer heuristically labels the repository as Monolith and Layered Application; "
+            "the supplied evidence does not confirm either architecture. Flask is detected, but its "
+            "use, REST semantics, triggering source file, and deployment configuration cannot be "
+            "determined from the framework, CI, directory, and count signals alone."
+        )
+        service = ChatService(provider=provider)
+        service.response_validator = PassingValidator()
+        request = ChatRequest(
+            question="How is the architecture structured?",
+            analysis={
+                "repository": {"name": "atlas"},
+                "architecture": {
+                    "style": "Monolith",
+                    "confidence": 0.6,
+                    "summary": "The repository most closely matches a monolith architecture.",
+                    "applications": ["Web"],
+                    "workspace": ["Monorepo"],
+                    "api_styles": [{"name": "REST", "confidence": 0.8, "evidence": ["backend stack"]}],
+                    "architecture_patterns": [
+                        {"name": "Layered Application", "confidence": 0.75, "evidence": ["backend", "services"]}
+                    ],
+                    "deployment": ["GitHub Actions"],
+                    "modules": ["backend", "services"],
+                    "backend_frameworks": [
+                        {"name": "Flask", "confidence": 0.9, "evidence": ["Flask"]}
+                    ],
+                },
+                "tech_stack": {
+                    "backend": ["Flask"],
+                    "ci_cd": ["GitHub Actions"],
+                },
+                "structure": {
+                    "total_files": 48,
+                    "total_directories": 8,
+                    "major_directories": ["backend", "services"],
+                },
+                "classification": {
+                    "project_type": "Web application",
+                    "primary_classification": "REST API",
+                },
+                "blueprint": {
+                    "architecture_type": "Layered Application",
+                    "confidence": 0.75,
+                    "layers": [{"name": "Backend", "directories": ["backend"]}],
+                    "data_flow": [{"source": "routes", "target": "services"}],
+                },
+            },
+        )
+
+        response = service.generate_answer(request)
+        prompt = provider.generate.call_args.args[0]
+
+        self.assertIn("Heuristic style classification (not source-confirmed): Monolith", prompt)
+        self.assertIn("Heuristic application-type signals (not confirmed runtime shape): Web", prompt)
+        self.assertIn("Heuristic API-style signals (not API-contract evidence): REST", prompt)
+        self.assertIn("Detected CI/container signals (not deployment evidence): GitHub Actions", prompt)
+        self.assertIn("Heuristic blueprint architecture type (not confirmed): Layered Application", prompt)
+        self.assertIn("Detected backend framework signals (evidence may not identify source files)", prompt)
+        self.assertIn(
+            "Analyzer classification (heuristic; not proof of architecture): REST API",
+            prompt,
+        )
+        self.assertIn("Detected backend technologies (not API-style or usage evidence): Flask", prompt)
+        self.assertIn("does not establish REST semantics", prompt)
+        self.assertIn("do not establish deployment configuration", prompt)
+        self.assertIn("Directory names, file counts, release counts, and activity metrics do not establish", prompt)
+        self.assertIn("Cite framework-triggering source paths only if the analysis supplies them", prompt)
+        self.assertIn("The analyzer heuristically labels the repository as Monolith and Layered Application", response.answer)
+        self.assertIn("the supplied evidence does not confirm either architecture", response.answer)
+        self.assertIn("Flask is detected, but its use, REST semantics, triggering source file, and deployment configuration cannot be determined", response.answer)
+        self.assertNotIn("- Style: Monolith", prompt)
+        self.assertNotIn("- API styles: REST", prompt)
+        self.assertNotIn("- Deployment signals: GitHub Actions", prompt)
+
+    def test_architecture_prompt_retains_explicit_component_evidence(self) -> None:
+        provider = Mock(spec=["generate"])
+        provider.generate.return_value = (
+            "The supplied evidence states that GET /orders dispatches to OrderService. "
+            "It does not establish additional responsibilities or deployment behavior."
+        )
+        service = ChatService(provider=provider)
+        service.response_validator = PassingValidator()
+        request = ChatRequest(
+            question="How is the architecture structured?",
+            analysis={
+                "repository": {"name": "atlas"},
+                "architecture": {"style": "Layered"},
+                "knowledge": {
+                    "evidence": [
+                        {
+                            "source": "backend/routes/orders.py",
+                            "details": "GET /orders dispatches to OrderService.",
+                        }
+                    ]
+                },
+            },
+        )
+
+        response = service.generate_answer(request)
+        prompt = provider.generate.call_args.args[0]
+
+        self.assertIn("backend/routes/orders.py: GET /orders dispatches to OrderService.", prompt)
+        self.assertIn("Describe a component or flow only when supplied evidence explicitly supports it", prompt)
+        self.assertIn("GET /orders dispatches to OrderService", response.answer)
 
     def test_missing_gemini_configuration_returns_clear_error(self) -> None:
         service = ChatService(provider=StubProvider(ValueError("GEMINI_API_KEY is not configured")))
@@ -154,17 +269,17 @@ class ChatServiceTests(unittest.TestCase):
         response = service.generate_answer(request)
 
         self.assertIn("Configuration Error", response.answer)
-        self.assertIn("Gemini is not configured", response.answer)
-        self.assertIsNotNone(response.validation)
+        self.assertIn("AI provider is not configured", response.answer)
+        self.assertIsNone(response.validation)
 
     def test_fallback_messages_classify_common_gemini_failures(self) -> None:
         service = ChatService(provider=StubProvider())
         cases = [
-            ("The Gemini API quota or rate limit has been exceeded (HTTP 429).", "quota or rate limit"),
-            ("The Gemini service is temporarily experiencing high demand or an outage (HTTP 503).", "temporarily experiencing high demand"),
+            ("The Gemini API quota or rate limit has been exceeded (HTTP 429).", "AI provider quota or rate limit"),
+            ("The Gemini service is temporarily experiencing high demand or an outage (HTTP 503).", "AI provider is temporarily unavailable"),
             ("The AI provider did not respond in time.", "did not respond in time"),
-            ("The Gemini API key was rejected (HTTP 401).", "rejected the configured API key"),
-            ("The configured Gemini model or endpoint was not found (HTTP 404).", "model or endpoint was not found"),
+            ("The Gemini API key was rejected (HTTP 401).", "rejected its API key"),
+            ("The configured Gemini model or endpoint was not found (HTTP 404).", "Check MODEL_NAME or GROQ_MODEL"),
         ]
 
         for error, expected_message in cases:
