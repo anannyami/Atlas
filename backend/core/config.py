@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
@@ -14,6 +15,12 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = "qwen/qwen3.8-27b"
     TEMPERATURE: float = 0.2
     MAX_TOKENS: int = 1500
+
+    # Repository source evidence
+    SOURCE_MAX_FILES: int = Field(default=40, ge=1, le=200)
+    SOURCE_MAX_FILE_BYTES: int = Field(default=16_000, ge=1, le=1_048_576)
+    SOURCE_MAX_TOTAL_BYTES: int = Field(default=240_000, ge=1, le=5_242_880)
+    SOURCE_MAX_CONCURRENCY: int = Field(default=5, ge=1, le=20)
 
     # API
     API_TITLE: str = "Atlas Backend"

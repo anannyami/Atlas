@@ -3,7 +3,7 @@ import traceback
 from fastapi import APIRouter, HTTPException
 from typing import List
 from fastapi import APIRouter
-from core.github_client import GitHubClient
+from core.github_client import GitHubAPIError, GitHubClient
 from models.analysis import RepositoryTreeNode
 from models.request import AnalyzeRepositoryRequest
 from models.response import AnalysisResponse
@@ -61,6 +61,14 @@ async def analyze_repository(
             status_code=400,
             detail=str(exc),
         )
+
+    except GitHubAPIError as exc:
+        detail = (
+            "GitHub authentication failed. Set a valid GITHUB_TOKEN and retry."
+            if exc.status_code == 401
+            else f"GitHub could not provide repository analysis ({exc.status_code})."
+        )
+        raise HTTPException(status_code=502, detail=detail) from exc
 
     except Exception as exc:
         traceback.print_exc()

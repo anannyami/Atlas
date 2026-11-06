@@ -151,6 +151,74 @@ class ChatServiceTests(unittest.TestCase):
         )
         self.assertNotIn("300–800 words", prompt)
 
+    def test_build_prompt_includes_relevant_line_numbered_source_evidence(self) -> None:
+        service = ChatService(provider=StubProvider())
+        request = ChatRequest(
+            question="Trace the request through the order service code.",
+            analysis={
+                "repository": {"name": "atlas"},
+                "source_evidence": [
+                    {
+                        "path": "backend/routes/orders.py",
+                        "file_type": "source",
+                        "start_line": 10,
+                        "end_line": 14,
+                        "text": "def get_orders():\n    return order_service.list_orders()\n",
+                        "truncated": False,
+                    },
+                    {
+                        "path": "README.md",
+                        "file_type": "documentation",
+                        "start_line": 1,
+                        "end_line": 2,
+                        "text": "Atlas analyzes repositories.",
+                        "truncated": False,
+                    },
+                ],
+                "source_evidence_notes": ["Skipped oversized source evidence: backend/generated.py."],
+            },
+        )
+        classification = service.intent_classifier.classify(request.question)
+        state = service.conversation_state_service.update(
+            state=None,
+            question=request.question,
+            classification=classification,
+        )
+
+        prompt = service.build_prompt(
+            request,
+            classification,
+            state,
+            service.repository_brief_builder.build(request.analysis),
+        )
+
+        self.assertIn("### backend/routes/orders.py:10-14", prompt)
+        self.assertIn("return order_service.list_orders()", prompt)
+        self.assertIn("Evidence limits:", prompt)
+        self.assertIn("Skipped oversized source evidence", prompt)
+        self.assertIn("cite the supplied path and line range", prompt)
+
+    def test_source_evidence_context_remains_bounded(self) -> None:
+        service = ChatService(provider=StubProvider())
+        analysis = {
+            "source_evidence": [
+                {
+                    "path": f"src/file_{index}.py",
+                    "file_type": "source",
+                    "start_line": 1,
+                    "end_line": 100,
+                    "text": "x" * 10_000,
+                    "truncated": False,
+                }
+                for index in range(40)
+            ]
+        }
+
+        context = service._source_evidence_context(analysis, "trace the request")
+
+        self.assertLessEqual(context.count("\n### "), 8)
+        self.assertLessEqual(len(context), 48_000)
+
     def test_architecture_prompt_qualifies_heuristics_and_rejects_unsupported_inferences(self) -> None:
         provider = Mock(spec=["generate"])
         provider.generate.return_value = (

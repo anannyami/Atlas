@@ -2,7 +2,7 @@ import asyncio
 import base64
 from urllib.parse import parse_qs, urlparse
 
-from core.github_client import GitHubClient
+from core.github_client import GitHubAPIError, GitHubClient
 
 
 class GitHubService:
@@ -291,6 +291,8 @@ class GitHubService:
 
             return content
 
+        except GitHubAPIError:
+            raise
         except Exception:
             return None
 
@@ -303,13 +305,14 @@ class GitHubService:
         owner: str,
         repo: str,
         paths: list[str],
+        max_concurrency: int | None = None,
     ) -> dict[str, str]:
         """
         Downloads multiple repository files while
         limiting concurrency to avoid connection bursts.
         """
 
-        semaphore = asyncio.Semaphore(5)
+        semaphore = asyncio.Semaphore(max_concurrency or 5)
 
         async def fetch_file(path: str):
 
