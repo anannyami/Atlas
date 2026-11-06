@@ -92,6 +92,56 @@ class ChatService:
             )
             return context
 
+    def _source_evidence_context(self, analysis: dict[str, Any], question: str) -> str:
+        evidence = analysis.get("source_evidence") or []
+        if not evidence:
+            notes = analysis.get("source_evidence_notes") or []
+            return (
+                "## Repository Source Evidence\n"
+                "No repository source or documentation snippets were retrieved.\n"
+                + ("\n".join(f"- {note}" for note in notes) if notes else "")
+            )
+
+        terms = {
+            token.casefold()
+            for token in re.findall(r"[A-Za-z0-9_./-]{3,}", question)
+        }
+        ranked: list[tuple[int, dict[str, Any]]] = []
+        for item in evidence:
+            path = str(item.get("path", ""))
+            text = str(item.get("text", ""))
+            path_terms = set(re.findall(r"[A-Za-z0-9_./-]{3,}", path.casefold()))
+            content_terms = set(re.findall(r"[A-Za-z0-9_./-]{3,}", text.casefold()))
+            score = len(terms & path_terms) * 8 + len(terms & content_terms)
+            if item.get("file_type") == "documentation" and any(
+                marker in question.casefold() for marker in ("what does", "purpose", "overview", "document")
+            ):
+                score += 12
+            if item.get("file_type") in {"source", "test"} and any(
+                marker in question.casefold() for marker in ("trace", "flow", "function", "class", "code", "request")
+            ):
+                score += 12
+            ranked.append((score, item))
+
+        ranked.sort(key=lambda pair: (-pair[0], str(pair[1].get("path", "")).casefold()))
+        sections = ["## Repository Source Evidence"]
+        total_chars = 0
+        for _, item in ranked[:8]:
+            path = str(item.get("path", ""))
+            text = str(item.get("text", ""))
+            line_start = int(item.get("start_line", 1))
+            line_end = int(item.get("end_line", max(line_start, text.count("\n") + line_start)))
+            marker = " (truncated)" if item.get("truncated") else ""
+            block = f"### {path}:{line_start}-{line_end}{marker}\n{text.strip()}"
+            if total_chars + len(block) > 48_000:
+                break
+            sections.append(block)
+            total_chars += len(block)
+        notes = analysis.get("source_evidence_notes") or []
+        if notes:
+            sections.append("Evidence limits:\n" + "\n".join(f"- {note}" for note in notes))
+        return "\n\n".join(sections)
+
     def _response_cache_key(self, request: ChatRequest) -> str:
         repository_fingerprint = self._analysis_fingerprint(request.analysis)
         normalized_question = " ".join(request.question.casefold().split()).rstrip("?!.,;:").strip()
@@ -435,6 +485,7 @@ class ChatService:
         selected_context_text = ", ".join(selected_context) if selected_context else "Full repository analysis"
 
         context = self._get_repository_context(request.analysis, selected_context)
+        source_evidence_context = self._source_evidence_context(request.analysis, question)
 
         redundant_brief_labels: set[str] = set()
         if {"summary", "purpose"} & set(selected_context):
@@ -566,6 +617,8 @@ Relevant Repository Context
 ===========================
 {context}
 
+{source_evidence_context}
+
 {self.build_question_guidance(question, intent_classification, conversation_state)}
 
 User Question:
@@ -582,6 +635,8 @@ User Question:
             "Answer the specific question first, then explain only what is needed. "
             "Use relevant repository analysis evidence; distinguish observed facts from reasonable engineering inferences. "
             "When evidence is missing, state what cannot be determined and still answer any supported part. "
+            "For source or documentation evidence, cite the supplied repository-relative path and line range. "
+            "Do not claim to have inspected files whose contents are not supplied. "
             "Use concise Markdown headings only when they help organize a substantive answer. "
             "Avoid generic filler, repeated summaries, and unsupported certainty."
         )
@@ -605,7 +660,7 @@ User Question:
         return f"""
 RESPONSE CONTRACT
 
-Answer the user's actual question first. Use the most relevant repository analysis evidence, and do not invent repository facts. Separate observed facts from reasonable engineering inferences; describe evidence gaps precisely. Include capabilities, roles, interactions, limitations, health indicators, or recommendations only when relevant to the question and supported by the analysis.
+Answer the user's actual question first. Use the most relevant repository analysis evidence, and do not invent repository facts. Separate observed facts from reasonable engineering inferences; describe evidence gaps precisely. Include capabilities, roles, interactions, limitations, health indicators, or recommendations only when relevant to the question and supported by the analysis. For source-backed claims, cite the supplied path and line range, distinguish observed code or documentation from inference, and state when snippets are missing or truncated.
 
 {headings}
 
@@ -652,7 +707,7 @@ Adapt answer length to complexity: a simple question usually needs a direct para
             "scalability": "Assess scalability from architecture and technology evidence, identify likely constraints as hypotheses, and clearly state that capacity requires workload and runtime evidence.",
             "comparison": "Compare the requested alternatives on explicit dimensions such as architecture, technology, and engineering tradeoffs. Keep repository-side claims evidence-based and label general comparison criteria as general, not repository facts.",
             "improvement_suggestions": "Prioritize actionable improvements tied to observed health, structure, architecture, or documentation evidence. Explain impact and uncertainty; avoid generic recommendations unsupported by this repository.",
-            "code_explanation": "Explain only the implementation evidence supplied in the analysis. Use structure and architecture to orient the answer, and say when source-level behavior cannot be determined.",
+            "code_explanation": "Trace code only through the supplied source or documentation snippets. Cite each relevant path and line range, distinguish observed code from inference, and say exactly what cannot be determined when the snippets are missing or truncated.",
         }
 
         guides = [
@@ -1358,5 +1413,16 @@ Adapt answer length to complexity: a simple question usually needs a direct para
             sources.append(ChatSource(title="Health Analysis", kind="health", snippet=f"Overall status: {health['overall_status']}"))
         if classification.get("primary_classification"):
             sources.append(ChatSource(title="Classification", kind="classification", snippet=classification["primary_classification"]))
+        for item in (analysis.get("source_evidence") or [])[:3]:
+            path = item.get("path", "repository file")
+            start_line = item.get("start_line", 1)
+            end_line = item.get("end_line", start_line)
+            sources.append(
+                ChatSource(
+                    title=f"{path}:{start_line}-{end_line}",
+                    kind="source_evidence",
+                    snippet=item.get("text", "")[:400],
+                )
+            )
 
         return sources[:6]

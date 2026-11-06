@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from models.analysis import (
     RepositoryInfo,
@@ -16,6 +16,7 @@ from models.intelligence import RepositoryKnowledge
 from models.architecture_blueprint import ArchitectureBlueprint
 from models.repository_identity import RepositoryIdentity
 from models.analysis import ProductIdentity
+from models.evidence import RepositoryFileEvidence
 
 
 class AnalysisResponse(BaseModel):
@@ -44,3 +45,6 @@ class AnalysisResponse(BaseModel):
     product_identity: ProductIdentity | None = None
 
     repository_identity: RepositoryIdentity | None = None
+
+    source_evidence: list[RepositoryFileEvidence] = Field(default_factory=list)
+    source_evidence_notes: list[str] = Field(default_factory=list)
