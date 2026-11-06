@@ -144,6 +144,21 @@ class ProviderFallbackTests(unittest.TestCase):
         with self.assertRaises(GroqProviderError):
             ProviderFallbackCoordinator(primary, fallback).generate_with_metadata("prompt")
 
+    def test_gemini_429_followed_by_groq_413_preserves_request_size_failure(self):
+        primary = StubProvider(GeminiProviderError("rate_limited", "quota", 429))
+        fallback = StubProvider(GroqProviderError(
+            "request_too_large",
+            "The Groq request was too large (HTTP 413).",
+            413,
+        ))
+
+        with self.assertRaises(GroqProviderError) as caught:
+            ProviderFallbackCoordinator(primary, fallback).generate_with_metadata("bounded prompt")
+
+        self.assertEqual(caught.exception.category, "request_too_large")
+        self.assertEqual(caught.exception.status_code, 413)
+        self.assertEqual(fallback.calls, [("bounded prompt", 0.2, 1500)])
+
     def test_no_fallback_provider_preserves_primary_error(self):
         primary = StubProvider(GeminiProviderError("rate_limited", "quota", 429))
         with self.assertRaises(GeminiProviderError):

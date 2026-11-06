@@ -197,6 +197,8 @@ class GeminiProvider(LLMProvider):
         )
 
     def _classify_status(self, status_code: int) -> tuple[str, str]:
+        if status_code == 413:
+            return "request_too_large", "The Gemini request was too large (HTTP 413)."
         if status_code == 400:
             return "invalid_request", "Gemini rejected the request as invalid (HTTP 400)."
         if status_code == 401:

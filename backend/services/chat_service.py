@@ -29,6 +29,14 @@ class ChatService:
     RESPONSE_CACHE_TTL_SECONDS = 30 * 60
     RESPONSE_CACHE_MAX_ENTRIES = 256
     ANALYSIS_CACHE_MAX_ENTRIES = 32
+    SOURCE_EVIDENCE_MAX_SNIPPETS = 4
+    SOURCE_EVIDENCE_MAX_CHARS = 12_000
+    CONVERSATION_MAX_MESSAGES = 6
+    CONVERSATION_SUMMARY_MAX_CHARS = 180
+    REPOSITORY_BRIEF_MAX_CHARS = 4_000
+    REPOSITORY_CONTEXT_MAX_CHARS = 6_000
+    QUESTION_MAX_CHARS = 4_000
+    MAX_PROVIDER_PROMPT_CHARS = 32_000
 
     def __init__(self, provider: Any | None = None) -> None:
         self.provider = provider or self._build_provider()
@@ -126,21 +134,33 @@ class ChatService:
         ranked.sort(key=lambda pair: (-pair[0], str(pair[1].get("path", "")).casefold()))
         sections = ["## Repository Source Evidence"]
         total_chars = 0
-        for _, item in ranked[:8]:
+        for _, item in ranked[: self.SOURCE_EVIDENCE_MAX_SNIPPETS]:
             path = str(item.get("path", ""))
             text = str(item.get("text", ""))
             line_start = int(item.get("start_line", 1))
             line_end = int(item.get("end_line", max(line_start, text.count("\n") + line_start)))
             marker = " (truncated)" if item.get("truncated") else ""
-            block = f"### {path}:{line_start}-{line_end}{marker}\n{text.strip()}"
-            if total_chars + len(block) > 48_000:
+            heading = f"### {path}:{line_start}-{line_end}{marker}\n"
+            available_text = self.SOURCE_EVIDENCE_MAX_CHARS - total_chars - len(heading)
+            if available_text <= 0:
                 break
+            block_text = text.strip()
+            if len(block_text) > available_text:
+                block_text = block_text[:available_text].rstrip() + "\n[snippet truncated for request size]"
+            block = heading + block_text
             sections.append(block)
             total_chars += len(block)
         notes = analysis.get("source_evidence_notes") or []
         if notes:
-            sections.append("Evidence limits:\n" + "\n".join(f"- {note}" for note in notes))
-        return "\n\n".join(sections)
+            notes_text = "\n".join(f"- {note}" for note in notes)
+            notes_prefix = "Evidence limits:\n"
+            separator_length = 2 if len(sections) > 1 else 0
+            available = self.SOURCE_EVIDENCE_MAX_CHARS - (
+                len("\n\n".join(sections)) + separator_length + len(notes_prefix)
+            )
+            if available > 0:
+                sections.append(notes_prefix + notes_text[:available])
+        return "\n\n".join(sections)[: self.SOURCE_EVIDENCE_MAX_CHARS]
 
     def _response_cache_key(self, request: ChatRequest) -> str:
         repository_fingerprint = self._analysis_fingerprint(request.analysis)
@@ -468,7 +488,7 @@ class ChatService:
         conversation_state: ConversationState,
         repository_brief: str,
     ) -> str:
-        question = request.question
+        question = request.question[: self.QUESTION_MAX_CHARS]
         conversation = list(request.conversation or [])
         if (
             conversation
@@ -510,6 +530,8 @@ class ChatService:
             for line in repository_brief.splitlines()
             if not any(line.startswith(f"{label}:") for label in redundant_brief_labels)
         )
+        repository_brief = repository_brief[: self.REPOSITORY_BRIEF_MAX_CHARS]
+        context = context[: self.REPOSITORY_CONTEXT_MAX_CHARS]
 
         intent_labels = {
             "repository_overview": "repository overview",
@@ -575,11 +597,14 @@ class ChatService:
             return ", ".join(values) if values else "None recorded."
 
         recent_turn_summaries = []
-        for message in conversation[-6:]:
+        for message in conversation[-self.CONVERSATION_MAX_MESSAGES:]:
             compact_content = re.sub(r"[#*_`>]", "", message.content)
             compact_content = re.sub(r"\s+", " ", compact_content).strip()
-            if len(compact_content) > 180:
-                compact_content = compact_content[:177].rstrip() + "..."
+            if len(compact_content) > self.CONVERSATION_SUMMARY_MAX_CHARS:
+                compact_content = (
+                    compact_content[: self.CONVERSATION_SUMMARY_MAX_CHARS - 3].rstrip()
+                    + "..."
+                )
             speaker = "User asked" if message.role.lower() == "user" else "Assistant response summary"
             recent_turn_summaries.append(f"- {speaker}: {compact_content}")
         recent_history_summary = "\n".join(recent_turn_summaries) or "No earlier turns in this request."
@@ -599,7 +624,7 @@ class ChatService:
             conversation_state_lines.insert(-1, f"Last User Question: {conversation_state.last_user_question}")
         conversation_state_text = "\n".join(conversation_state_lines)
 
-        return f"""{self.build_system_prompt()}
+        prompt = f"""{self.build_system_prompt()}
 
 Intent Classification
 =====================
@@ -626,6 +651,47 @@ User Question:
 
 {self.build_response_template(question, intent_classification)}
 """
+        if len(prompt) > self.MAX_PROVIDER_PROMPT_CHARS:
+            prompt = self._bound_provider_prompt(prompt, question, source_evidence_context)
+        return prompt
+
+    def _bound_provider_prompt(
+        self,
+        prompt: str,
+        question: str,
+        source_evidence_context: str,
+    ) -> str:
+        """Trim lower-priority context while retaining the question and citations."""
+        context_marker = "Relevant Repository Context\n===========================\n"
+        source_marker = "\n\n## Repository Source Evidence"
+        context_start = prompt.find(context_marker)
+        source_start = prompt.find(source_marker)
+        if context_start >= 0 and source_start > context_start:
+            available_context = max(
+                0,
+                self.MAX_PROVIDER_PROMPT_CHARS
+                - (len(prompt) - (context_start + len(context_marker))),
+            )
+            context_end = source_start
+            context = prompt[context_start + len(context_marker):context_end]
+            prompt = (
+                prompt[: context_start + len(context_marker)]
+                + context[:available_context]
+                + prompt[context_end:]
+            )
+        if len(prompt) <= self.MAX_PROVIDER_PROMPT_CHARS:
+            return prompt
+        question_marker = "User Question:\n"
+        question_start = prompt.find(question_marker)
+        if question_start >= 0:
+            question_end = prompt.find("\n\n", question_start + len(question_marker))
+            question_text = question if question_end < 0 else prompt[question_start:question_end]
+            prompt = (
+                prompt[: self.MAX_PROVIDER_PROMPT_CHARS - len(question_text) - 2]
+                + "\n\n"
+                + question_text
+            )
+        return prompt[: self.MAX_PROVIDER_PROMPT_CHARS]
 
     def build_system_prompt(self) -> str:
         return (
@@ -1371,6 +1437,13 @@ Adapt answer length to complexity: a simple question usually needs a direct para
             return (
                 "## Provider Rate Limit\n"
                 "The AI provider quota or rate limit has been exceeded. Please retry after the quota window resets."
+            )
+        if "request_too_large" in normalized_error or "http 413" in normalized_error or "request was too large" in normalized_error:
+            return (
+                "## Request Too Large\n"
+                "The request context was too large for the configured AI provider. "
+                "Atlas kept the most relevant repository evidence, but the question or conversation still exceeded the provider limit. "
+                "Try a narrower question or a shorter conversation."
             )
         if "timeout" in normalized_error or "did not respond in time" in normalized_error:
             return "## Provider Timeout\nThe AI provider did not respond in time. Please try again in a few moments."

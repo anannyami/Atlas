@@ -216,8 +216,51 @@ class ChatServiceTests(unittest.TestCase):
 
         context = service._source_evidence_context(analysis, "trace the request")
 
-        self.assertLessEqual(context.count("\n### "), 8)
-        self.assertLessEqual(len(context), 48_000)
+        self.assertLessEqual(context.count("\n### "), 4)
+        self.assertLessEqual(len(context), 12_000)
+        self.assertIn("### src/file_0.py:1-100", context)
+
+    def test_large_history_and_evidence_produce_bounded_provider_prompt(self) -> None:
+        service = ChatService(provider=StubProvider())
+        request = ChatRequest(
+            question="Trace the request flow.",
+            analysis={
+                "repository": {"name": "atlas"},
+                "source_evidence": [
+                    {
+                        "path": f"src/file_{index}.py",
+                        "file_type": "source",
+                        "start_line": 1,
+                        "end_line": 500,
+                        "text": ("def handler():\n    return service.call()\n" * 500),
+                        "truncated": False,
+                    }
+                    for index in range(50)
+                ],
+            },
+            conversation=[
+                ChatMessage(role="user", content="previous " + ("history " * 500))
+                for _ in range(20)
+            ],
+        )
+        classification = service.intent_classifier.classify(request.question)
+        state = service.conversation_state_service.update(
+            state=None,
+            question=request.question,
+            classification=classification,
+        )
+
+        prompt = service.build_prompt(
+            request,
+            classification,
+            state,
+            service.repository_brief_builder.build(request.analysis),
+        )
+
+        self.assertLessEqual(len(prompt), service.MAX_PROVIDER_PROMPT_CHARS)
+        self.assertIn("Trace the request flow.", prompt)
+        self.assertIn("### src/file_0.py:1-500", prompt)
+        self.assertLessEqual(prompt.count("User asked:"), 6)
 
     def test_architecture_prompt_qualifies_heuristics_and_rejects_unsupported_inferences(self) -> None:
         provider = Mock(spec=["generate"])
@@ -348,6 +391,7 @@ class ChatServiceTests(unittest.TestCase):
             ("The AI provider did not respond in time.", "did not respond in time"),
             ("The Gemini API key was rejected (HTTP 401).", "rejected its API key"),
             ("The configured Gemini model or endpoint was not found (HTTP 404).", "Check MODEL_NAME or GROQ_MODEL"),
+            ("The Groq request was too large (HTTP 413).", "Request Too Large"),
         ]
 
         for error, expected_message in cases:

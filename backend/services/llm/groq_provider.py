@@ -97,6 +97,8 @@ class GroqProvider(LLMProvider):
 
     @staticmethod
     def _classify_status(status_code: int) -> tuple[str, str]:
+        if status_code == 413:
+            return "request_too_large", "The Groq request was too large (HTTP 413)."
         if status_code == 400:
             return "invalid_request", "Groq rejected the request as invalid (HTTP 400)."
         if status_code == 401:
