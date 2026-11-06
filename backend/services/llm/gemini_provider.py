@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from core.config import settings
-from services.llm.base_provider import LLMProvider
+from services.llm.base_provider import LLMGenerationResult, LLMProvider
 
 
 class GeminiProviderError(RuntimeError):
@@ -38,6 +38,25 @@ class GeminiProvider(LLMProvider):
         temperature: float = 0.2,
         max_tokens: int = 1500,
     ) -> str:
+        result = self.generate_with_metadata(
+            prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        if not result.completed:
+            raise GeminiProviderError(
+                "incomplete_generation",
+                f"Gemini generation did not complete (finish reason: {result.finish_reason}).",
+            )
+        return result.text
+
+    def generate_with_metadata(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 1500,
+    ) -> LLMGenerationResult:
         if not self.api_key:
             raise GeminiProviderError("missing_api_key", "Gemini is not configured.")
 
@@ -73,6 +92,13 @@ class GeminiProvider(LLMProvider):
                     json=payload,
                     headers={"x-goog-api-key": self.api_key},
                 )
+
+                if response.status_code == 429:
+                    self.logger.error(
+                        "Gemini 429 response details: %s",
+                        response.text[:3000],
+                    )
+
             except httpx.TimeoutException as exc:
                 self.logger.error(
                     "Gemini request timed out model=%s retry_number=%d",
@@ -85,7 +111,8 @@ class GeminiProvider(LLMProvider):
                 ) from exc
             except httpx.RequestError as exc:
                 self.logger.error(
-                    "Gemini network failure model=%s retry_number=%d error_type=%s",
+                    "Gemini network failure model=%s "
+                    "retry_number=%d error_type=%s",
                     self.model_name,
                     retry_number,
                     type(exc).__name__,
@@ -97,8 +124,7 @@ class GeminiProvider(LLMProvider):
 
             if response.status_code in self.RETRYABLE_STATUS_CODES:
                 if response.status_code == 429:
-                    can_retry = rate_limit_retries < 1
-                    rate_limit_retries += 1
+                    can_retry = False
                 else:
                     can_retry = retry_count < len(self.RETRY_DELAYS_SECONDS)
                     retry_count += 1
@@ -135,14 +161,35 @@ class GeminiProvider(LLMProvider):
                 )
                 raise GeminiProviderError(category, message, response.status_code)
 
-            self.logger.info(
-                "Gemini request completed model=%s endpoint=%s final_status_code=%d retry_number=%d",
+            try:
+                result = self._extract_generation_result(response)
+            except GeminiProviderError as exc:
+                self.logger.warning(
+                    "Gemini response rejected model=%s status_code=%d category=%s",
+                    self.model_name,
+                    response.status_code,
+                    exc.category,
+                )
+                raise
+            log_method = self.logger.info if result.completed else self.logger.warning
+            log_method(
+                "Gemini generation metadata model=%s finish_reason=%s "
+                "prompt_token_count=%s candidates_token_count=%s thoughts_token_count=%s "
+                "total_token_count=%s configured_max_output_tokens=%d completed=%s status_code=%d "
+                "retry_number=%d output_characters=%d",
                 self.model_name,
-                self.endpoint,
+                result.finish_reason,
+                result.prompt_token_count,
+                result.candidates_token_count,
+                result.thoughts_token_count,
+                result.total_token_count,
+                max_tokens,
+                result.completed,
                 response.status_code,
                 retry_number,
+                len(result.text),
             )
-            return self._extract_text(response)
+            return result
 
         raise GeminiProviderError(
             "temporary_service_unavailable",
@@ -168,6 +215,16 @@ class GeminiProvider(LLMProvider):
         return "provider_http_error", f"The Gemini API returned an unexpected HTTP status ({status_code})."
 
     def _extract_text(self, response: httpx.Response) -> str:
+        result = self._extract_generation_result(response)
+        if not result.completed:
+            raise GeminiProviderError(
+                "incomplete_generation",
+                f"Gemini generation did not complete (finish reason: {result.finish_reason}).",
+                response.status_code,
+            )
+        return result.text
+
+    def _extract_generation_result(self, response: httpx.Response) -> LLMGenerationResult:
         try:
             data = response.json()
         except (ValueError, TypeError) as exc:
@@ -193,6 +250,12 @@ class GeminiProvider(LLMProvider):
                 response.status_code,
             )
 
+        raw_finish_reason = candidate.get("finishReason")
+        finish_reason = (
+            raw_finish_reason.strip().upper()
+            if isinstance(raw_finish_reason, str) and raw_finish_reason.strip()
+            else "UNKNOWN"
+        )
         content = candidate.get("content", {})
         parts = content.get("parts", []) if isinstance(content, dict) else []
         if not isinstance(parts, list):
@@ -207,13 +270,31 @@ class GeminiProvider(LLMProvider):
             for part in parts
             if isinstance(part, dict) and isinstance(part.get("text", ""), str)
         ).strip()
-        if not text:
+        completed = finish_reason == "STOP"
+        if not text and (completed or finish_reason == "UNKNOWN"):
             raise GeminiProviderError(
                 "unexpected_api_response",
                 "Gemini returned an empty or malformed response.",
                 response.status_code,
             )
-        return text
+        usage_metadata = data.get("usageMetadata")
+        return LLMGenerationResult(
+            text=text,
+            finish_reason=finish_reason,
+            completed=completed,
+            prompt_token_count=self._optional_token_count(usage_metadata, "promptTokenCount"),
+            candidates_token_count=self._optional_token_count(usage_metadata, "candidatesTokenCount"),
+            thoughts_token_count=self._optional_token_count(usage_metadata, "thoughtsTokenCount"),
+            total_token_count=self._optional_token_count(usage_metadata, "totalTokenCount"),
+        )
+
+    def _optional_token_count(self, usage_metadata: Any, field: str) -> int | None:
+        if not isinstance(usage_metadata, dict):
+            return None
+        value = usage_metadata.get(field)
+        if type(value) is not int or value < 0:
+            return None
+        return value
 
     def close(self) -> None:
         self.client.close()

@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from models.chat import ChatRequest
 from models.response_validation import ResponseValidationResult
 from services.chat_service import ChatService
+from services.llm.base_provider import LLMGenerationResult
 
 
 class QueuedProvider:
@@ -17,6 +18,25 @@ class QueuedProvider:
     def generate(self, prompt: str, *, temperature: float = 0.2, max_tokens: int = 1500) -> str:
         self.prompts.append(prompt)
         return self.responses.pop(0)
+
+
+class QueuedMetadataProvider(QueuedProvider):
+    def __init__(self, results: list[LLMGenerationResult | Exception]) -> None:
+        self.results = list(results)
+        self.prompts: list[str] = []
+
+    def generate_with_metadata(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 1500,
+    ) -> LLMGenerationResult:
+        self.prompts.append(prompt)
+        result = self.results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 class QueuedValidator:
@@ -156,6 +176,55 @@ class ResponseRepairTests(unittest.TestCase):
         self.assertEqual(len(provider.prompts), 2)
         self.assertEqual(len(validator.responses), 2)
         self.assertEqual(provider.responses, ["must not be requested"])
+
+    def test_initial_provider_failure_does_not_trigger_repair(self) -> None:
+        provider = QueuedMetadataProvider([RuntimeError("provider unavailable")])
+        service, validator = service_with(provider, [
+            result(False, 0.2, missing_sections=["Repository Evidence"]),
+        ])
+
+        response = service.generate_answer(request())
+
+        self.assertIn("provider is unavailable", response.answer)
+        self.assertEqual(len(provider.prompts), 1)
+        self.assertEqual(len(validator.responses), 0)
+        self.assertIsNone(response.validation)
+
+    def test_incomplete_initial_generation_is_not_presented_or_repaired(self) -> None:
+        provider = QueuedMetadataProvider([
+            LLMGenerationResult("partial secret answer", "MAX_TOKENS", False),
+        ])
+        service, validator = service_with(provider, [
+            result(False, 0.2, missing_sections=["Repository Evidence"]),
+        ])
+
+        response = service.generate_answer(request())
+
+        self.assertIn("Incomplete AI Response", response.answer)
+        self.assertIn("MAX_TOKENS", response.answer)
+        self.assertNotIn("partial secret answer", response.answer)
+        self.assertEqual(len(provider.prompts), 1)
+        self.assertEqual(len(validator.responses), 0)
+        self.assertIsNone(response.validation)
+
+    def test_incomplete_repair_keeps_original_and_surfaces_diagnostic(self) -> None:
+        provider = QueuedMetadataProvider([
+            LLMGenerationResult("weak original answer", "STOP", True),
+            LLMGenerationResult("partial repaired answer", "MAX_TOKENS", False),
+        ])
+        service, validator = service_with(provider, [
+            result(False, 0.3, missing_sections=["Repository Evidence"]),
+        ])
+
+        with self.assertLogs("services.chat_service", level="WARNING") as captured:
+            response = service.generate_answer(request())
+
+        self.assertEqual(response.answer, "weak original answer")
+        self.assertIn("Repository Evidence", response.validation.missing_sections)
+        self.assertIn("Repair response was incomplete (MAX_TOKENS).", "\n".join(captured.output))
+        self.assertEqual(len(provider.prompts), 2)
+        self.assertEqual(len(validator.responses), 1)
+        self.assertNotIn("required six-section", provider.prompts[1])
 
 
 if __name__ == "__main__":

@@ -14,7 +14,10 @@ from typing import Any
 from models.chat import ChatRequest, ChatResponse, ChatSource
 from services.conversation_state import ConversationState, ConversationStateService
 from services.intent_classifier import IntentClassification, IntentClassifier
+from services.llm.base_provider import LLMGenerationResult
 from services.llm.gemini_provider import GeminiProvider
+from services.llm.groq_provider import GroqProvider
+from services.llm.provider_coordinator import ProviderFallbackCoordinator
 from services.repository_brief_builder import RepositoryBriefBuilder
 from services.repair_prompt_builder import RepairPromptBuilder
 from services.response_validator import ResponseValidator
@@ -128,7 +131,7 @@ class ChatService:
 
         try:
             response = self._generate_answer_uncached(request)
-            if key is not None and (response.validation is None or response.validation.passed):
+            if key is not None and response.validation is not None and response.validation.passed:
                 with self._cache_lock:
                     self._bounded_cache_set(
                         self._response_cache,
@@ -147,12 +150,40 @@ class ChatService:
                     self._inflight_requests.pop(key, None)
 
     def _build_provider(self) -> Any:
-        provider_name = os.getenv("LLM_PROVIDER", "gemini").lower()
-        if provider_name != "gemini":
-            return GeminiProvider()
-        return GeminiProvider(
+        gemini = GeminiProvider(
             api_key=settings.GEMINI_API_KEY,
             model_name=settings.MODEL_NAME,
+        )
+        groq = (
+            GroqProvider(api_key=settings.GROQ_API_KEY, model_name=settings.GROQ_MODEL)
+            if settings.GROQ_API_KEY
+            else None
+        )
+        return ProviderFallbackCoordinator(gemini, groq)
+
+    def _generate_provider_response(self, prompt: str) -> LLMGenerationResult:
+        generate_with_metadata = getattr(self.provider, "generate_with_metadata", None)
+        if callable(generate_with_metadata):
+            result = generate_with_metadata(
+                prompt,
+                temperature=settings.TEMPERATURE,
+                max_tokens=settings.MAX_TOKENS,
+            )
+            if not isinstance(result, LLMGenerationResult):
+                raise TypeError("Provider returned invalid generation metadata.")
+            return result
+
+        text = self.provider.generate(
+            prompt,
+            temperature=settings.TEMPERATURE,
+            max_tokens=settings.MAX_TOKENS,
+        )
+        if not isinstance(text, str):
+            raise TypeError("Provider returned a non-text response.")
+        return LLMGenerationResult(
+            text=text,
+            finish_reason="unavailable_provider_returns_text_only",
+            completed=True,
         )
 
     def _join(self, values: list[Any] | tuple[Any, ...] | None) -> str:
@@ -228,24 +259,28 @@ class ChatService:
         add_field(purpose_lines, "Problem addressed", purpose.get("problem"))
         add_field(purpose_lines, "Capabilities", purpose.get("capabilities") or repository_identity.get("capabilities"))
         add_field(purpose_lines, "Technology rationale", purpose.get("technology_story"))
-        add_field(purpose_lines, "Classification", classification.get("primary_classification") or classification.get("project_type"))
+        add_field(
+            purpose_lines,
+            "Analyzer classification (heuristic; not proof of architecture)",
+            classification.get("primary_classification") or classification.get("project_type"),
+        )
         append_section("Repository Purpose", purpose_lines)
 
         architecture_lines: list[str] = []
-        add_field(architecture_lines, "Style", architecture.get("style"))
-        add_field(architecture_lines, "Summary", architecture.get("summary"))
-        add_field(architecture_lines, "Confidence", architecture.get("confidence"))
-        add_field(architecture_lines, "Applications", architecture.get("applications"))
-        add_field(architecture_lines, "Workspace", architecture.get("workspace"))
-        add_field(architecture_lines, "Modules", architecture.get("modules"))
-        add_field(architecture_lines, "Organization", architecture.get("organization"))
-        add_field(architecture_lines, "Deployment signals", architecture.get("deployment"))
+        add_field(architecture_lines, "Heuristic style classification (not source-confirmed)", architecture.get("style"))
+        add_field(architecture_lines, "Analyzer-generated summary (may include inference)", architecture.get("summary"))
+        add_field(architecture_lines, "Heuristic confidence (not factual certainty)", architecture.get("confidence"))
+        add_field(architecture_lines, "Heuristic application-type signals (not confirmed runtime shape)", architecture.get("applications"))
+        add_field(architecture_lines, "Heuristic workspace signals (not confirmed runtime topology)", architecture.get("workspace"))
+        add_field(architecture_lines, "Module names (responsibilities not established by names alone)", architecture.get("modules"))
+        add_field(architecture_lines, "Directory-derived organization signals (not confirmed responsibilities)", architecture.get("organization"))
+        add_field(architecture_lines, "Detected CI/container signals (not deployment evidence)", architecture.get("deployment"))
         for key, label in (
-            ("architecture_patterns", "Patterns"),
-            ("api_styles", "API styles"),
+            ("architecture_patterns", "Heuristic architecture pattern signals (not source-confirmed)"),
+            ("api_styles", "Heuristic API-style signals (not API-contract evidence)"),
             ("authentication", "Authentication signals"),
-            ("frontend_frameworks", "Frontend frameworks"),
-            ("backend_frameworks", "Backend frameworks"),
+            ("frontend_frameworks", "Detected frontend framework signals (evidence may not identify source files)"),
+            ("backend_frameworks", "Detected backend framework signals (evidence may not identify source files)"),
             ("databases", "Database signals"),
             ("cloud", "Cloud signals"),
         ):
@@ -255,11 +290,11 @@ class ChatService:
         technology_lines: list[str] = []
         for key, label in (
             ("languages", "Languages"),
-            ("frontend", "Frontend"),
-            ("backend", "Backend"),
+            ("frontend", "Detected frontend technologies (not source-usage evidence)"),
+            ("backend", "Detected backend technologies (not API-style or usage evidence)"),
             ("database", "Data stores and database libraries"),
             ("cloud", "Cloud"),
-            ("ci_cd", "CI/CD"),
+            ("ci_cd", "CI/CD detections (not deployment evidence)"),
             ("package_managers", "Package managers"),
             ("containers", "Containers"),
             ("mobile", "Mobile"),
@@ -318,16 +353,16 @@ class ChatService:
                         evidence_lines.append(f"{source or 'Evidence'}: {details or ''}".strip())
             add_field(knowledge_lines, "Evidence", evidence_lines)
         if blueprint:
-            add_field(knowledge_lines, "Blueprint architecture type", blueprint.get("architecture_type"))
-            add_field(knowledge_lines, "Blueprint confidence", blueprint.get("confidence"))
+            add_field(knowledge_lines, "Heuristic blueprint architecture type (not confirmed)", blueprint.get("architecture_type"))
+            add_field(knowledge_lines, "Heuristic blueprint confidence (not factual certainty)", blueprint.get("confidence"))
             for key, label in (
-                ("layers", "Blueprint layers"),
-                ("components", "Blueprint components"),
-                ("dependencies", "Blueprint dependencies"),
-                ("communication", "Communication paths"),
-                ("entrypoints", "Blueprint entry points"),
-                ("external_services", "External services"),
-                ("data_flow", "Data flow"),
+                ("layers", "Blueprint-inferred layers (not source-confirmed)"),
+                ("components", "Blueprint-inferred components (not source-confirmed)"),
+                ("dependencies", "Blueprint-inferred dependencies (not source-confirmed)"),
+                ("communication", "Blueprint-inferred communication paths (not source-confirmed)"),
+                ("entrypoints", "Blueprint-inferred entry points (not source-confirmed)"),
+                ("external_services", "Blueprint-inferred external services (not source-confirmed)"),
+                ("data_flow", "Blueprint-inferred data flow (not source-confirmed)"),
             ):
                 add_field(knowledge_lines, label, blueprint.get(key))
         readme = knowledge.get("readme")
@@ -405,7 +440,12 @@ class ChatService:
         if {"summary", "purpose"} & set(selected_context):
             redundant_brief_labels.add("Repository Purpose")
         if "architecture" in selected_context:
-            redundant_brief_labels.update({"Architecture Summary", "Engineering Style"})
+            redundant_brief_labels.update({
+                "Architecture Summary",
+                "Engineering Style",
+                "Important Components",
+                "Repository Organization",
+            })
         if "tech_stack" in selected_context:
             redundant_brief_labels.add("Technology Overview")
         if "structure" in selected_context:
@@ -531,7 +571,7 @@ Relevant Repository Context
 User Question:
 {question}
 
-{self.build_response_template()}
+{self.build_response_template(question, intent_classification)}
 """
 
     def build_system_prompt(self) -> str:
@@ -539,39 +579,39 @@ User Question:
             "You are Atlas, an AI repository engineer and senior software architect. "
             "The repository analysis object supplied below is the sole source of truth. "
             "Do not invent features, frameworks, technologies, cloud providers, build systems, authentication, or architecture patterns. "
-            "If the repository analysis does not contain enough evidence for the question, respond exactly with: 'Based on the available repository analysis I cannot determine that.' "
-            "Answer with confidence only when evidence is present, and explain your reasoning using repository evidence. "
-            "Use markdown headings, lists, tables, and concrete citations. "
-            "Do not answer generically or with vague speculation. "
-            "Always keep the response anchored to the repository analysis, and treat the analysis as the authoritative source."
+            "Answer the specific question first, then explain only what is needed. "
+            "Use relevant repository analysis evidence; distinguish observed facts from reasonable engineering inferences. "
+            "When evidence is missing, state what cannot be determined and still answer any supported part. "
+            "Use concise Markdown headings only when they help organize a substantive answer. "
+            "Avoid generic filler, repeated summaries, and unsupported certainty."
         )
 
-    def build_response_template(self) -> str:
-        """Return the mandatory response structure and evidence constraints."""
-        return """
+    def build_response_template(
+        self,
+        question: str = "",
+        intent_classification: IntentClassification | None = None,
+    ) -> str:
+        """Return question-specific answer guidance without a fixed six-heading contract."""
+        is_follow_up = bool(intent_classification and intent_classification.is_follow_up)
+        required_sections = ResponseValidator().required_sections_for_question(
+            question,
+            is_follow_up=is_follow_up,
+        )
+        headings = (
+            "Useful headings for this question: " + ", ".join(required_sections) + "."
+            if required_sections
+            else "This is a simple or contextual question; answer directly without forcing headings."
+        )
+        return f"""
 RESPONSE CONTRACT
 
-Use repository evidence supplied in the prompt; do not invent repository facts. Distinguish observed facts from implications, and state evidence gaps plainly. Unless brevity is requested or evidence is limited, target 300–800 words. Complete each heading concisely; mark irrelevant headings briefly.
+Answer the user's actual question first. Use the most relevant repository analysis evidence, and do not invent repository facts. Separate observed facts from reasonable engineering inferences; describe evidence gaps precisely. Include capabilities, roles, interactions, limitations, health indicators, or recommendations only when relevant to the question and supported by the analysis.
 
-# Short Answer
-Answer directly in 2–4 sentences.
+{headings}
 
-# Repository Overview
-Give only the context needed for this question; do not repeat the full summary.
+Use the required useful headings above when they help structure this answer, but do not add unrelated sections or mark irrelevant topics. For overview questions, cover purpose and supported capabilities; mention audience only when evidenced. For architecture questions, explain component responsibilities and evidenced interactions or data flow. For technology questions, name detected technologies, explain their roles and supported relationships. For code or folder questions, stay within supplied implementation and path evidence, and state when source-level behavior is unavailable. For health or improvement questions, connect each observation and recommendation to an available indicator or repository fact. For follow-ups, preserve context and answer only the new question without repeating the repository overview.
 
-# Detailed Explanation
-Explain engineering reasoning, interactions, and tradeoffs when supported. Synthesize relevant analysis areas rather than describing only one.
-
-# Repository Evidence
-Give concise, specific evidence for key claims and identify its analysis area when available. Cite only supplied evidence.
-
-# Engineering Observations
-Give relevant evidence-backed strengths, limitations, risks, or improvements. Label uncertainty; do not treat heuristics or partial samples as proof.
-
-# Conclusion
-Close with a short answer-specific takeaway; add no new claims.
-
-For follow-ups, continue the established topic and avoid repeating prior explanations. Conversation state is continuity context, not repository evidence.
+Adapt answer length to complexity: a simple question usually needs a direct paragraph or two; a broad engineering question may need a concise, evidence-backed explanation. Avoid generic filler, redundant conclusions, and arbitrary word-count targets.
 """
 
     def build_question_guidance(
@@ -586,7 +626,20 @@ For follow-ups, continue the established topic and avoid repeating prior explana
 
         guidance_by_intent = {
             "repository_overview": "Explain the repository at a high level, connecting purpose, identity, classification, major areas, and evidence without repeating the full brief.",
-            "architecture": "Explain the observed architecture, component responsibilities and interactions, request or data flow where evidenced, design rationale, scalability implications, and tradeoffs. Separate observed facts from evaluation.",
+            "architecture": (
+                "Ground architecture claims in explicit repository evidence. Treat Architecture style, summary, "
+                "pattern/API-style labels, blueprint types, and confidence values as heuristic classifications, "
+                "not confirmed architecture. FastAPI or Flask detection proves only that the analyzer detected a "
+                "framework; it does not establish REST semantics or explain why/how a framework is used. CI, "
+                "container, and activity signals do not establish deployment configuration or runtime topology. "
+                "Directory names, file counts, release counts, and activity metrics do not establish component "
+                "responsibilities or interactions. Describe a component or flow only when supplied evidence "
+                "explicitly supports it; otherwise say it cannot be determined and identify the needed evidence "
+                "(for example, relevant source files, route definitions, dependency/communication paths, workflow "
+                "contents, or deployment configuration). Cite framework-triggering source paths only if the "
+                "analysis supplies them; never invent those paths. Clearly label an inference as tentative and "
+                "explain its specific supporting evidence."
+            ),
             "technology": "Explain why each relevant detected technology appears to be used, how technologies interact, and evidence-backed strengths and limitations. Do not infer usage from a technology name alone.",
             "folder_structure": "Explain how the relevant folders and entry points are organized and what responsibilities the available structure supports; distinguish path evidence from inferred roles.",
             "repository_tree": "Use the supplied tree and structure evidence to orient the explanation around the relevant paths; do not claim file contents that were not supplied.",
@@ -631,8 +684,9 @@ For follow-ups, continue the established topic and avoid repeating prior explana
             guides.append("Answer the current question directly, resolve short references from conversational continuity, and add only the explanation needed to advance the discussion.")
 
         common = (
-            "Ground repository-specific claims in supplied evidence; label inference and unknowns. "
-            "Conversation state provides continuity, never repository facts. Avoid repeating prior material."
+            "Answer the question directly before giving supporting detail. Ground repository-specific claims in supplied evidence, "
+            "label engineering inferences, and state unknowns specifically. Conversation state provides continuity, never repository facts. "
+            "Avoid generic filler and repeating prior material."
         )
         body = "\n".join(f"- {guide}" for guide in dict.fromkeys(guides))
         continuity_text = "\n".join(f"- {item}" for item in continuity)
@@ -963,17 +1017,46 @@ For follow-ups, continue the established topic and avoid repeating prior explana
                 estimated_input_tokens,
             )
         generation_started = time.perf_counter()
+        finish_reason = "not_available"
         try:
-            answer = self.provider.generate(
-                prompt,
-                temperature=settings.TEMPERATURE,
-                max_tokens=settings.MAX_TOKENS,
-            )
-            generation_succeeded = True
+            generation_result = self._generate_provider_response(prompt)
+            finish_reason = generation_result.finish_reason
+            if generation_result.completed:
+                answer = generation_result.text
+                generation_succeeded = True
+            else:
+                answer = self._fallback_answer(
+                    request.question,
+                    f"incomplete_generation:{generation_result.finish_reason}",
+                )
+                logger.warning(
+                    "Gemini generation incomplete finish_reason=%s output_characters=%d",
+                    generation_result.finish_reason,
+                    len(generation_result.text),
+                )
         except Exception as exc:
             answer = self._fallback_answer(request.question, str(exc))
+            logger.warning(
+                "AI provider request failed error_type=%s category=%s",
+                type(exc).__name__,
+                getattr(exc, "category", "provider_error"),
+            )
         response_generation_seconds += time.perf_counter() - generation_started
         initial_answer_chars, initial_answer_words, initial_output_tokens = prompt_size(answer)
+        if not generation_succeeded:
+            if prompt_debug:
+                logger.info(
+                    "AI request completed without response validation generation_completed=False "
+                    "finish_reason=%s output_characters=%d total_request_ms=%.2f",
+                    finish_reason,
+                    initial_answer_chars,
+                    (time.perf_counter() - request_started) * 1000,
+                )
+            return ChatResponse(
+                answer=answer,
+                sources=self._collect_sources(request.analysis),
+                validation=None,
+            )
 
         validation_started = time.perf_counter()
         prior_assistant_responses = [
@@ -1003,13 +1086,17 @@ For follow-ups, continue the established topic and avoid repeating prior explana
         repair_reasons.extend(validation.missing_engineering_observations)
 
         major_validation_failure = (
-            bool(validation.missing_sections)
-            or bool(validation.missing_repository_evidence)
-            or validation.generic_reasoning
-            or validation.hallucination_risk >= 0.5
-            or (
-                validation.category_scores.get("repository_specificity", 1.0) < 0.25
-                and validation.category_scores.get("repository_evidence", 1.0) < 0.5
+            not validation.passed
+            and (
+                bool(validation.missing_sections)
+                or bool(validation.missing_repository_evidence)
+                or validation.generic_reasoning
+                or validation.hallucination_risk >= 0.5
+                or any("unsupported technology claims" in issue.lower() for issue in validation.issues)
+                or (
+                    validation.category_scores.get("repository_specificity", 1.0) < 0.25
+                    and validation.category_scores.get("repository_evidence", 1.0) < 0.5
+                )
             )
         )
 
@@ -1021,6 +1108,7 @@ For follow-ups, continue the established topic and avoid repeating prior explana
                 validation_result=validation,
                 question=request.question,
                 repository_analysis=request.analysis,
+                is_follow_up=intent_classification.is_follow_up,
             )
             repair_prompt_characters, repair_prompt_words, repair_input_tokens = prompt_size(repair_prompt)
             logical_gemini_calls += 1
@@ -1035,19 +1123,33 @@ For follow-ups, continue the established topic and avoid repeating prior explana
                     repair_input_tokens,
                 )
             repair_generation_started = time.perf_counter()
+            repair_finish_reason = "not_available"
+            repair_failure_reason: str | None = None
             try:
-                repaired_answer = self.provider.generate(
-                    repair_prompt,
-                    temperature=settings.TEMPERATURE,
-                    max_tokens=settings.MAX_TOKENS,
-                )
+                repair_result = self._generate_provider_response(repair_prompt)
+                repair_finish_reason = repair_result.finish_reason
+                if repair_result.completed:
+                    repaired_answer = repair_result.text
+                else:
+                    repaired_answer = None
+                    repair_failure_reason = (
+                        f"Repair response was incomplete ({repair_result.finish_reason})."
+                    )
+                    logger.warning(
+                        "AI response repair incomplete finish_reason=%s output_characters=%d",
+                        repair_result.finish_reason,
+                        len(repair_result.text),
+                    )
             except Exception as exc:
                 repaired_answer = None
-                if os.getenv("PROMPT_DEBUG", "").lower() in {"1", "true", "yes", "on"}:
-                    logging.getLogger(__name__).warning(
-                        "Response repair attempt failed: %s",
-                        type(exc).__name__,
-                    )
+                repair_failure_reason = (
+                    f"Repair provider request failed ({type(exc).__name__})."
+                )
+                logger.warning(
+                    "AI response repair provider failure error_type=%s category=%s",
+                    type(exc).__name__,
+                    getattr(exc, "category", "provider_error"),
+                )
             repair_generation_seconds = time.perf_counter() - repair_generation_started
             response_generation_seconds += repair_generation_seconds
 
@@ -1071,6 +1173,8 @@ For follow-ups, continue the established topic and avoid repeating prior explana
                 repaired_answer_chars = 0
                 repaired_answer_words = 0
                 repair_input_tokens = 0
+                if repair_failure_reason:
+                    logger.warning("AI response repair failed diagnostic=%s", repair_failure_reason)
             repair_seconds = time.perf_counter() - repair_started
         else:
             repair_prompt_characters = 0
@@ -1103,6 +1207,7 @@ For follow-ups, continue the established topic and avoid repeating prior explana
                 "repair_prompt_words=%d estimated_repair_input_tokens=%d repair_output_chars=%d "
                 "repair_output_words=%d estimated_repair_output_tokens=%d final_output_chars=%d "
                 "final_output_words=%d estimated_final_output_tokens=%d estimated_total_tokens=%d finish_reason=%s "
+                "generation_completed=%s repair_finish_reason=%s "
                 "response_generation_ms=%.2f validation_ms=%.2f repair_ms=%.2f total_request_ms=%.2f",
                 request.question[:120],
                 logical_gemini_calls,
@@ -1127,7 +1232,9 @@ For follow-ups, continue the established topic and avoid repeating prior explana
                 final_answer_words,
                 final_output_tokens,
                 estimated_total_tokens,
-                "unavailable_provider_returns_text_only",
+                finish_reason,
+                generation_succeeded,
+                repair_finish_reason if retry_triggered else "not_run",
                 response_generation_seconds * 1000,
                 validation_seconds * 1000,
                 repair_seconds * 1000,
@@ -1176,42 +1283,50 @@ For follow-ups, continue the established topic and avoid repeating prior explana
 
     def _fallback_answer(self, question: str, error: str) -> str:
         normalized_error = error.lower()
+        if "incomplete_generation" in normalized_error:
+            finish_reason = error.rsplit(":", 1)[-1].strip().upper()
+            return (
+                "## Incomplete AI Response\n"
+                f"Gemini stopped before completing the answer (finish reason: {finish_reason}). "
+                "Atlas did not present the partial output as a complete response. "
+                "Try asking a narrower question."
+            )
         if "not configured" in normalized_error or "missing_api_key" in normalized_error:
             return (
                 "## Configuration Error\n"
-                "Gemini is not configured, so Atlas cannot produce a live repository answer right now.\n\n"
+                "The AI provider is not configured, so Atlas cannot produce a live repository answer right now.\n\n"
                 "## Short Answer\n"
-                "The assistant cannot generate a grounded response until the Gemini provider is configured.\n\n"
+                "The assistant cannot generate a grounded response until an AI provider is configured.\n\n"
                 "## Detailed Explanation\n"
                 "Atlas has the repository analysis available locally, but it cannot call the LLM provider without a valid API key.\n\n"
                 "## Recommendations\n"
-                "- Configure GEMINI_API_KEY and MODEL_NAME in the backend environment.\n"
+                "- Configure the provider API key and model in the backend environment.\n"
                 "- Restart the backend and retry your question."
             )
         if "invalid_api_key" in normalized_error or "api key was rejected" in normalized_error:
             return (
                 "## Provider Authentication Error\n"
-                "Gemini rejected the configured API key. Check the key in the deployment secret settings.\n\n"
+                "The configured AI provider rejected its API key. Check the key in the backend environment.\n\n"
                 "## Short Answer\n"
-                "Atlas could not obtain a response because Gemini rejected its API key.\n\n"
+                "Atlas could not obtain a response because the AI provider rejected its API key.\n\n"
                 "## Detailed Explanation\n"
                 "The provider returned an authentication failure. The repository question and analysis were not changed."
             )
         if "rate_limited" in normalized_error or "quota or rate limit" in normalized_error:
             return (
                 "## Provider Rate Limit\n"
-                "The Gemini API quota or rate limit has been exceeded. Please retry after the quota window resets."
+                "The AI provider quota or rate limit has been exceeded. Please retry after the quota window resets."
             )
         if "timeout" in normalized_error or "did not respond in time" in normalized_error:
             return "## Provider Timeout\nThe AI provider did not respond in time. Please try again in a few moments."
         if "temporary_service_unavailable" in normalized_error or "temporarily experiencing high demand" in normalized_error or "temporarily unavailable" in normalized_error:
-            return "## Provider Temporarily Unavailable\nThe Gemini service is temporarily experiencing high demand. Please try again in a few moments."
+            return "## Provider Temporarily Unavailable\nThe AI provider is temporarily unavailable. Please try again in a few moments."
         if "model_unavailable" in normalized_error or "model or endpoint was not found" in normalized_error:
-            return "## Model Unavailable\nThe configured Gemini model or endpoint was not found. Check MODEL_NAME in the deployment settings."
+            return "## Model Unavailable\nThe configured AI model or endpoint was not found. Check MODEL_NAME or GROQ_MODEL in the backend environment."
         if "network_failure" in normalized_error or "network failure" in normalized_error:
             return "## Network Error\nA network failure prevented contacting the Gemini service. Please try again shortly."
         if "invalid_request" in normalized_error:
-            return "## Provider Request Error\nGemini rejected the generated request as invalid."
+            return "## Provider Request Error\nThe configured AI provider rejected the generated request as invalid."
         return (
             "## Short Answer\n"
             "Based on the available repository analysis, I cannot fully answer this request right now because the LLM provider is unavailable.\n\n"
